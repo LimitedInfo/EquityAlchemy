@@ -1,6 +1,8 @@
 import pandas as pd
 from repository import SECFilingRepository
 
+import model
+
 
 
 class Company:
@@ -57,14 +59,15 @@ class Filing:
     @property
     def income_statement(self):
         if self._income_statement is None:
-            self._income_statement = IncomeStatement(self.data['StatementsOfIncome'])
+            self._income_statement = IncomeStatement(self.data['StatementsOfIncome'], self.form)
         return self._income_statement
 
 
 class IncomeStatement:
-    def __init__(self, data: dict):
+    def __init__(self, data: dict, form: str):
         self.raw_data = data
         self.df = self._process_data()
+        self.form = form
 
     def _process_data(self):
         """Process the raw financial data into a structured DataFrame."""
@@ -117,35 +120,65 @@ class IncomeStatement:
 
         return df
 
+    @property
+    def table(self):
+        if self.form == '10-K':
+            return self.get_annual_data()
+        elif self.form == '10-Q':
+            return self.get_quarterly_data()
+        else:
+            return pd.DataFrame()
+
+
     def get_annual_data(self, include_segment_data: bool = False):
-        """Return only annual financial data."""
+        """Return only annual financial data, pivoted with metrics as index and date ranges as columns."""
         if self.df.empty:
             return pd.DataFrame()
 
-        # Calculate period length in days
-        self.df['period_length'] = (self.df['end_date'] - self.df['start_date']).dt.days
+        # Calculate period length in days if not already present
+        if 'period_length' not in self.df.columns:
+             self.df['period_length'] = (self.df['end_date'] - self.df['start_date']).dt.days
 
         # Filter for periods that are approximately 1 year (between 350 and 380 days)
-        annual_data = self.df[(self.df['period_length'] > 350) & (self.df['period_length'] < 380)]
+        annual_data = self.df[(self.df['period_length'] > 350) & (self.df['period_length'] < 380)].copy()
 
         # Filter out segment data if not requested
         if not include_segment_data:
             annual_data = annual_data[annual_data['segment_value'].isnull()]
 
-        return annual_data
+        if annual_data.empty:
+            return pd.DataFrame()
+
+        # Create the date range column for pivoting
+        annual_data['date_range'] = annual_data['start_date'].dt.strftime('%Y-%m-%d') + ':' + annual_data['end_date'].dt.strftime('%Y-%m-%d')
+
+        # Pivot the table
+        pivoted_df = annual_data.pivot_table(index='metric', columns='date_range', values='value')
+
+        return pivoted_df
 
     def get_quarterly_data(self):
-        """Return only quarterly financial data."""
+        """Return only quarterly financial data, pivoted with metrics as index and date ranges as columns."""
         if self.df.empty:
             return pd.DataFrame()
 
-        # Calculate period length in days
-        self.df['period_length'] = (self.df['end_date'] - self.df['start_date']).dt.days
+        # Calculate period length in days if not already present
+        if 'period_length' not in self.df.columns:
+            self.df['period_length'] = (self.df['end_date'] - self.df['start_date']).dt.days
 
         # Filter for periods that are approximately 3 months (between 85 and 95 days)
-        quarterly_data = self.df[(self.df['period_length'] > 85) & (self.df['period_length'] < 95)]
+        quarterly_data = self.df[(self.df['period_length'] > 85) & (self.df['period_length'] < 95)].copy()
 
-        return quarterly_data
+        if quarterly_data.empty:
+            return pd.DataFrame()
+
+        # Create the date range column for pivoting
+        quarterly_data['date_range'] = quarterly_data['start_date'].dt.strftime('%Y-%m-%d') + ':' + quarterly_data['end_date'].dt.strftime('%Y-%m-%d')
+
+        # Pivot the table
+        pivoted_df = quarterly_data.pivot_table(index='metric', columns='date_range', values='value')
+
+        return pivoted_df
 
     def get_metric(self, metric_name):
         """Return data for a specific metric."""

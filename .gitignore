@@ -130,7 +130,7 @@ secrets.yaml
 # SEC specific
 sec_api_key.txt
 filings/
-cache/ 
+cache/
 .cursorignore
 
 # Cursor specific

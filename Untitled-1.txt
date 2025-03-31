@@ -1,0 +1,39 @@
+date_range                                          2021-09-26:2022-09-24  2022-09-25:2023-09-30  2023-10-01:2024-09-28
+metric
+CostOfGoodsAndServicesSold                                   2.235460e+11           2.141370e+11           2.103520e+11
+EarningsPerShareBasic                                        6.150000e+00           6.160000e+00           6.110000e+00
+EarningsPerShareDiluted                                      6.110000e+00           6.130000e+00           6.080000e+00
+GrossProfit                                                  1.707820e+11           1.691480e+11           1.806830e+11
+IncomeLossFromContinuingOperationsBeforeIncomeT...           1.191030e+11           1.137360e+11           1.234850e+11
+IncomeTaxExpenseBenefit                                      1.930000e+10           1.674100e+10           2.974900e+10
+NetIncomeLoss                                                9.980300e+10           9.699500e+10           9.373600e+10
+NonoperatingIncomeExpense                                   -3.340000e+08          -5.650000e+08           2.690000e+08
+OperatingExpenses                                            5.134500e+10           5.484700e+10           5.746700e+10
+OperatingIncomeLoss                                          1.194370e+11           1.143010e+11           1.232160e+11
+ResearchAndDevelopmentExpense                                2.625100e+10           2.991500e+10           3.137000e+10
+RevenueFromContractWithCustomerExcludingAssesse...           3.943280e+11           3.832850e+11           3.910350e+11
+SellingGeneralAndAdministrativeExpense                       2.509400e+10           2.493200e+10           2.609700e+10
+WeightedAverageNumberOfDilutedSharesOutstanding              1.632582e+10           1.581255e+10           1.540810e+10
+WeightedAverageNumberOfSharesOutstandingBasic                1.621596e+10           1.574423e+10           1.534378e+10
+
+
+
+
+date_range                                          2011-09-25:2012-09-29  2012-09-30:2013-09-28  2013-09-29:2014-09-27
+metric
+CommonStockDividendsPerShareDeclared                         3.800000e-01           1.640000e+00           1.820000e+00
+CostOfGoodsAndServicesSold                                   8.784600e+10           1.066060e+11           1.122580e+11
+EarningsPerShareBasic                                        6.380000e+00           5.720000e+00           6.490000e+00
+EarningsPerShareDiluted                                      6.310000e+00           5.680000e+00           6.450000e+00
+GrossProfit                                                  6.866200e+10           6.430400e+10           7.053700e+10
+IncomeLossFromContinuingOperationsBeforeIncomeT...           5.576300e+10           5.015500e+10           5.348300e+10
+IncomeTaxExpenseBenefit                                      1.403000e+10           1.311800e+10           1.397300e+10
+NetIncomeLoss                                                4.173300e+10           3.703700e+10           3.951000e+10
+NonoperatingIncomeExpense                                    5.220000e+08           1.156000e+09           9.800000e+08
+OperatingExpenses                                            1.342100e+10           1.530500e+10           1.803400e+10
+OperatingIncomeLoss                                          5.524100e+10           4.899900e+10           5.250300e+10
+ResearchAndDevelopmentExpense                                3.381000e+09           4.475000e+09           6.041000e+09
+SalesRevenueNet                                              1.565080e+11           1.709100e+11           1.827950e+11
+SellingGeneralAndAdministrativeExpense                       1.004000e+10           1.083000e+10           1.199300e+10
+WeightedAverageNumberOfDilutedSharesOutstanding              6.617483e+09           6.521634e+09           6.122663e+09
+WeightedAverageNumberOfSharesOutstandingBasic                6.543726e+09           6.477320e+09           6.085572e+09

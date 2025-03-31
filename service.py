@@ -40,6 +40,38 @@ def get_consolidated_financials(ticker: str, sec_repository, llm_repository=None
     # Join financial statements using LLM to map between different naming conventions
     return company.join_financial_statements(financial_statements, llm_repository=llm_repository)
 
+def get_combined_income_statements(ticker: str, sec_repository, llm_repository=None, form_type=None):
+    """
+    Get a CombinedIncomeStatements object for a ticker.
+
+    Args:
+        ticker (str): Company ticker symbol
+        sec_repository: Repository for SEC filing data
+        llm_repository: Repository for LLM operations (optional)
+        form_type (str, optional): Filter by filing form type (e.g., '10-K', '10-Q')
+
+    Returns:
+        model.CombinedIncomeStatements: Combined income statements object
+    """
+    # Get the consolidated financial data
+    consolidated_data = get_consolidated_financials(
+        ticker,
+        sec_repository,
+        llm_repository=llm_repository,
+        form_type=form_type,
+        statement_type='income_statement'
+    )
+
+    # Create and return the CombinedIncomeStatements object
+    return model.CombinedIncomeStatements(consolidated_data, ticker, form_type)
+
 
 if __name__ == "__main__":
-    df = get_consolidated_financials("AAPL", repository.SECFilingRepository(), llm_repository=repository.LLMRepository(), form_type='10-K')
+    # Example of using the combined income statements
+    combined = get_combined_income_statements(
+        "AAPL",
+        repository.SECFilingRepository(),
+        llm_repository=repository.LLMRepository(),
+        form_type='10-K'
+    )
+    print(combined)

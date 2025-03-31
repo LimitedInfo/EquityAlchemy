@@ -68,6 +68,72 @@ class TestService(unittest.TestCase):
             # Restore the original method
             model.Company.join_financial_statements = original_join_method
 
+    def test_get_combined_income_statements(self):
+        # Arrange
+        ticker = "AAPL"
+        sec_repo = repository.FakeSECFilingRepository()
+        llm_repo = Mock()
+
+        # Mock the map_dataframes method to return a mapping
+        llm_repo.map_dataframes.return_value = {
+            'Revenue': 'Revenues',
+            'NetIncomeLoss': 'NetIncome'
+        }
+
+        # Mock the get_consolidated_financials function
+        original_get_consolidated = service.get_consolidated_financials
+
+        # Create a test DataFrame that would be the result of consolidation
+        test_result_df = pd.DataFrame({
+            '2020-01-01:2020-12-31': [100, 200],
+            '2021-01-01:2021-12-31': [110, 210],
+            '2022-01-01:2022-12-31': [120, 220]
+        }, index=['Revenue', 'NetIncomeLoss'])
+
+        service.get_consolidated_financials = Mock(return_value=test_result_df)
+
+        try:
+            # Act
+            result = service.get_combined_income_statements(ticker, sec_repo, llm_repo, form_type='10-K')
+
+            # Assert
+            self.assertIsInstance(result, model.CombinedIncomeStatements)
+            self.assertEqual(result.ticker, ticker)
+            self.assertEqual(result.form_type, '10-K')
+
+            # Check the data is correctly stored
+            pd.testing.assert_frame_equal(result.data, test_result_df)
+
+            # Check that metrics can be accessed
+            revenue = result.get_metric('Revenue')
+            self.assertIsNotNone(revenue)
+            self.assertEqual(revenue['2020-01-01:2020-12-31'], 100)
+            self.assertEqual(revenue['2021-01-01:2021-12-31'], 110)
+            self.assertEqual(revenue['2022-01-01:2022-12-31'], 120)
+
+            # Check that periods can be accessed
+            period_data = result.get_period('2020-01-01:2020-12-31')
+            self.assertIsNotNone(period_data)
+            self.assertEqual(period_data['Revenue'], 100)
+            self.assertEqual(period_data['NetIncomeLoss'], 200)
+
+            # Check utility methods
+            self.assertEqual(len(result.get_all_periods()), 3)
+            self.assertEqual(len(result.get_all_metrics()), 2)
+
+            # Check that get_consolidated_financials was called with right parameters
+            service.get_consolidated_financials.assert_called_once_with(
+                ticker,
+                sec_repo,
+                llm_repository=llm_repo,
+                form_type='10-K',
+                statement_type='income_statement'
+            )
+
+        finally:
+            # Restore the original method
+            service.get_consolidated_financials = original_get_consolidated
+
 
 
 
@@ -566,6 +632,50 @@ class TestLLMRepository(unittest.TestCase):
         self.assertEqual(result, expected_mapping)
         # Simply verify the method was called once without checking specific arguments
         mock_client.generate_content.assert_called_once()
+
+    def test_make_index_readable(self):
+        # Arrange
+        from unittest.mock import MagicMock
+
+        # Create test index names
+        index_names = ['NetIncomeLoss', 'OperatingIncomeLoss', 'WeightedAverageNumberOfSharesOutstanding',
+                      'EarningsPerShareBasic', 'Revenue']
+
+        # Create expected mapping result
+        expected_mapping = {
+            'NetIncomeLoss': 'Net Income',
+            'OperatingIncomeLoss': 'Operating Income',
+            'WeightedAverageNumberOfSharesOutstanding': 'Average Shares Outstanding',
+            'EarningsPerShareBasic': 'EPS (Basic)',
+            'Revenue': 'Revenue'
+        }
+
+        # Create a mock response
+        mock_response = MagicMock()
+        mock_response.text = json.dumps(expected_mapping)
+
+        # Mock the LLM client
+        mock_client = MagicMock()
+        mock_client.generate_content.return_value = mock_response
+
+        # Create repository with mock client
+        repo = repository.LLMRepository()
+        repo.gemini_client = mock_client
+
+        # Act
+        result = repo.make_index_readable(index_names, client=mock_client)
+
+        # Assert
+        self.assertEqual(result, expected_mapping)
+        mock_client.generate_content.assert_called_once()
+
+        # Check that all original names are preserved as keys
+        for name in index_names:
+            self.assertIn(name, result)
+
+        # Check that values are more readable (when they should be changed)
+        self.assertEqual(result['NetIncomeLoss'], 'Net Income')
+        self.assertEqual(result['Revenue'], 'Revenue') # Should remain unchanged as it's already readable
 
 
 class TestRegressions(unittest.TestCase):

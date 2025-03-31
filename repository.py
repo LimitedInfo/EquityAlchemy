@@ -278,3 +278,108 @@ class LLMRepository:
 
         # If we get here, all retries failed
         return {}
+
+    def make_index_readable(self, index_names, client=None, max_retries=2):
+        """
+        Convert technical index names to human readable format using Gemini.
+
+        Args:
+            index_names (list): List of technical index names to convert
+            client (GenerativeModel, optional): Gemini client, uses self.gemini_client if None
+            max_retries (int, optional): Maximum number of retries if API call fails
+
+        Returns:
+            dict: Mapping from original index names to readable names
+        """
+        import traceback
+
+        if client is None:
+            client = self.gemini_client
+
+        for attempt in range(max_retries + 1):  # +1 for the initial attempt
+            try:
+                prompt = f"""
+                Convert these financial metric names to more readable, human-friendly names.
+                Keep them concise but clear. Return a JSON mapping where keys are original names and values are readable names.
+                Original names: {list(index_names)}
+
+                Only output the raw JSON mapping without any formatting, code blocks, or newlines. If a name is already readable,
+                keep it as is. Example format: {{"TechnicalName": "Readable Name", "AnotherTechnicalName": "Another Readable Name"}}
+                """
+
+                print(f"Sending prompt to LLM to make {len(index_names)} index names readable")
+
+                response = client.generate_content(
+                    prompt,
+                    generation_config={
+                        'response_mime_type': 'application/json',
+                    }
+                )
+
+                # Get the response text and clean it
+                response_text = response.text
+                print(f"Raw LLM response: {response_text[:200]}...") # Print first 200 chars to avoid huge logs
+
+                # Clean up any code blocks or formatting
+                if '```' in response_text:
+                    # Extract content between code blocks
+                    response_text = response_text.split('```')[1].strip()
+                    print(f"After code block extraction: {response_text[:200]}...")
+                if 'json' in response_text:
+                    # Remove json language identifier
+                    response_text = response_text.split('json')[1].strip()
+                    print(f"After json identifier removal: {response_text[:200]}...")
+
+                # Parse the JSON response
+                mapping = json.loads(response_text)
+                print(f"Parsed mapping: {mapping}")
+
+                # Handle case where the mapping is a list of dictionaries instead of a single dictionary
+                if isinstance(mapping, list):
+                    print("Converting list of dictionaries to a single dictionary in make_index_readable")
+                    single_mapping = {}
+                    for item in mapping:
+                        if isinstance(item, dict):
+                            single_mapping.update(item)
+                    mapping = single_mapping
+                    print(f"Converted mapping: {mapping}")
+
+                # Validate the mapping thoroughly
+                valid_mapping = {}
+                for source_idx, readable_name in mapping.items():
+                    # Only include mappings for items that were in the original list
+                    if source_idx in index_names:
+                        valid_mapping[source_idx] = readable_name
+                    else:
+                        print(f"WARNING: Mapping contains source index '{source_idx}' not in original index names - skipping")
+
+                # If the valid mapping doesn't include all original names, add the missing ones unchanged
+                for name in index_names:
+                    if name not in valid_mapping:
+                        valid_mapping[name] = name
+                        print(f"Adding missing index '{name}' with unchanged name")
+
+                # Success! Return the valid mapping
+                print(f"Successfully created readable mapping with {len(valid_mapping)} entries")
+                return valid_mapping
+
+            except json.JSONDecodeError as json_err:
+                print(f"Error parsing JSON (attempt {attempt+1}/{max_retries+1}): {json_err}")
+                print(f"Response text: {response_text}")
+
+                # If this is the last retry, return unchanged names as fallback
+                if attempt == max_retries:
+                    print("Maximum retries reached. Returning unchanged names.")
+                    return {name: name for name in index_names}
+
+            except Exception as e:
+                print(f"Unexpected error in make_index_readable (attempt {attempt+1}/{max_retries+1}): {e}")
+                traceback.print_exc()
+
+                # If this is the last retry, return unchanged names as fallback
+                if attempt == max_retries:
+                    print("Maximum retries reached. Returning unchanged names.")
+                    return {name: name for name in index_names}
+
+        # If we get here, all retries failed
+        return {name: name for name in index_names}

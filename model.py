@@ -72,10 +72,6 @@ class Company:
         """Filter filings by the specified form type (10-K, 10-Q)."""
         return [filing for filing in self.filings if filing.form == filing_type]
 
-    @property
-    def all_income_statements(self):
-        return [filing.income_statement for filing in self.filings]
-
     def join_financial_statements(self, financial_statements, llm_repository=None):
         """
         Join financial statement dataframes from multiple filings into a single dataframe.
@@ -382,3 +378,72 @@ class IncomeStatement:
     def get_metric(self, metric_name):
         """Return data for a specific metric."""
         return self.df[self.df['metric'] == metric_name]
+
+
+class CombinedIncomeStatements:
+    """
+    Represents consolidated financial statements that have been joined from multiple filings.
+    This class stores and provides access to the consolidated data as a pandas DataFrame.
+    """
+    def __init__(self, data: pd.DataFrame, ticker: str, form_type: str = None):
+        """
+        Initialize a CombinedIncomeStatements object with consolidated financial data.
+
+        Args:
+            data (pd.DataFrame): The consolidated financial statements DataFrame
+            ticker (str): The company ticker symbol
+            form_type (str, optional): The form type used to filter statements (e.g., '10-K', '10-Q')
+        """
+        self.data = data
+        self.ticker = ticker
+        self.form_type = form_type
+
+    def get_metric(self, metric_name):
+        """
+        Return data for a specific metric across all time periods.
+
+        Args:
+            metric_name (str): Name of the financial metric to retrieve
+
+        Returns:
+            pd.Series: The metric values across all time periods
+        """
+        if metric_name in self.data.index:
+            return self.data.loc[metric_name]
+        return None
+
+    def get_period(self, period):
+        """
+        Return all metrics for a specific time period.
+
+        Args:
+            period (str): The time period in format 'YYYY-MM-DD:YYYY-MM-DD'
+
+        Returns:
+            pd.Series: All metrics for the specified period
+        """
+        if period in self.data.columns:
+            return self.data[period]
+        return None
+
+    def get_all_periods(self):
+        """
+        Return a list of all available time periods.
+
+        Returns:
+            list: All time periods in the data
+        """
+        return list(self.data.columns)
+
+    def get_all_metrics(self):
+        """
+        Return a list of all available metrics.
+
+        Returns:
+            list: All metrics in the data
+        """
+        return list(self.data.index)
+
+    def __str__(self):
+        """Return a string representation of the consolidated data."""
+        return f"CombinedIncomeStatements for {self.ticker} ({self.form_type})\n{self.data}"

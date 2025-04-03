@@ -1,5 +1,5 @@
-import model
-import repository
+import backend.domain.model as model
+import backend.adapters.repository as repository
 import pandas as pd
 
 def get_dataframe_from_ticker(ticker: str, repository) -> pd.DataFrame:

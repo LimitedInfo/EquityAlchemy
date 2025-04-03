@@ -2,8 +2,8 @@ from dataclasses import dataclass
 import pandas as pd
 
 
-import repository
-import model
+import backend.adapters.repository as repository
+import backend.domain.model as model
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,6 @@
 import requests
 from dotenv import load_dotenv
-import model
+import backend.domain.model as model
 from sec_api import XbrlApi
 import os
 import json
@@ -95,7 +95,9 @@ class FakeSECFilingRepository:
             ('0000789019', '0000950170-25-010491', 'msft-20241231.htm'): 'MSFT_10Q_20250129_data.json'
         }
 
-        test_data_dir = 'test_data'
+        # Use absolute path for test_data directory
+        test_data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'test_data')
+        print(f"Loading test data from: {test_data_dir}")
         for key, filename in file_mapping.items():
             filepath = os.path.join(test_data_dir, filename)
             try:

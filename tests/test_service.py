@@ -1,9 +1,9 @@
 import pytest
 from unittest.mock import MagicMock, patch
 import pandas as pd
-import model
-import service
-from repository import FakeSECFilingRepository
+import backend.domain.model as model
+import backend.service_layer.service as service
+from backend.adapters.repository import FakeSECFilingRepository
 
 class TestFinancialServices:
 
@@ -19,7 +19,7 @@ class TestFinancialServices:
         }, index=['Revenue', 'Cost of Revenue', 'Gross Profit', 'EarningsPerShareBasic'])
 
         # Patch the get_consolidated_financials function to return our test data
-        with patch('service.get_consolidated_financials', return_value=test_data):
+        with patch('backend.service_layer.service.get_consolidated_financials', return_value=test_data):
             # Call the function we're testing
             result = service.get_combined_income_statements(
                 'AAPL',

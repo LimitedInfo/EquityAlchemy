@@ -5,8 +5,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uuid
 from typing import Dict, Optional, List
-import service
-import repository
+import backend.service_layer.service as service
+import backend.adapters.repository as repository
 import pandas as pd
 
 # Session storage (in-memory for simplicity)

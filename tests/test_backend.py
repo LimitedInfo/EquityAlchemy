@@ -2,10 +2,10 @@ from fastapi.testclient import TestClient
 import pytest
 from unittest.mock import patch, MagicMock
 import pandas as pd
-from backend import app
-import model
-import service
-from repository import FakeSECFilingRepository
+from backend.entrypoints.backend import app
+import backend.domain.model as model
+import backend.service_layer.service as service
+from backend.adapters.repository import FakeSECFilingRepository
 
 client = TestClient(app)
 
@@ -66,10 +66,10 @@ def test_get_income_statements():
     }, index=['Revenue', 'Cost of Revenue', 'Gross Profit'])
 
     # Patch the relevant model/repository methods to return our test data
-    with patch('model.Company.filter_filings') as mock_filter_filings, \
-         patch('model.Filing.income_statement') as mock_income_statement, \
-         patch('backend.repository.SECFilingRepository', return_value=fake_sec_repo), \
-         patch('backend.repository.LLMRepository', return_value=fake_llm_repo):
+    with patch('backend.domain.model.Company.filter_filings') as mock_filter_filings, \
+         patch('backend.domain.model.Filing.income_statement') as mock_income_statement, \
+         patch('backend.adapters.repository.SECFilingRepository', return_value=fake_sec_repo), \
+         patch('backend.adapters.repository.LLMRepository', return_value=fake_llm_repo):
 
         # Set up the mocks to return appropriate test data
         mock_filing = MagicMock()
@@ -89,7 +89,7 @@ def test_get_income_statements():
         )
 
         # Now test the API endpoint that will use this service
-        with patch('backend.service.get_combined_income_statements', return_value=actual_result):
+        with patch('backend.service_layer.service.get_combined_income_statements', return_value=actual_result):
             response = client.get("/api/financial/income/AAPL?form_type=10-K")
 
             # Verify response

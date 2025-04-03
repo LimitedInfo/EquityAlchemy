@@ -5,9 +5,9 @@ import pandas as pd
 import json
 import os
 
-import repository
-import model
-import service
+import backend.adapters.repository as repository
+import backend.domain.model as model
+import backend.service_layer.service as service
 
 
 
@@ -479,7 +479,7 @@ class TestCompany(unittest.TestCase):
 class TestSECFilingRepository(unittest.TestCase):
     def test_get_cik_by_ticker(self):
         # Arrange
-        from repository import SECFilingRepository
+        from backend.adapters.repository import SECFilingRepository
         repo = repository.FakeSECFilingRepository()
 
         # Act
@@ -490,7 +490,7 @@ class TestSECFilingRepository(unittest.TestCase):
 
     def test_get_filing_data_returns_dictionary(self):
         # Arrange
-        from repository import SECFilingRepository
+        from backend.adapters.repository import SECFilingRepository
 
         repo = repository.FakeSECFilingRepository()
 
@@ -509,7 +509,7 @@ class TestSECFilingRepository(unittest.TestCase):
 
     def test_filing_data_incomestatement_returns_dictionary(self):
         # Arrange
-        from repository import SECFilingRepository
+        from backend.adapters.repository import SECFilingRepository
 
         repo = repository.FakeSECFilingRepository()
 
@@ -537,7 +537,7 @@ class TestSECFilingRepository(unittest.TestCase):
 
     def test_income_statement_pivot(self):
         # Arrange
-        from repository import SECFilingRepository
+        from backend.adapters.repository import SECFilingRepository
         # model is already imported globally
 
         repo = repository.FakeSECFilingRepository()

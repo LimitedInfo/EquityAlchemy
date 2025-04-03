@@ -43,6 +43,7 @@ cover/
 # Jupyter Notebook
 .ipynb_checkpoints
 *.ipynb
+frontend/package-lock.json
 
 # IPython
 profile_default/

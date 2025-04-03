@@ -1,0 +1,105 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# ============= General Architecture =============
+- rule: Use layered architecture: domain, service, infrastructure, entrypoints
+  explanation: Organize the project into clear layers. Domain contains core logic; service layer orchestrates use cases; infrastructure handles persistence; entrypoints define API endpoints (FastAPI).
+
+# ============= Domain Layer =============
+- rule: Domain models must not import FastAPI or SQLAlchemy
+  explanation: Keep domain logic pure. No HTTP, ORM, or I/O concerns.
+
+- rule: Rich domain models encapsulate business logic
+  explanation: Entities should contain behavior, not just data. Avoid anemic models.
+
+- rule: Use value objects and aggregates
+  explanation: Encapsulate related logic and enforce invariants through aggregate roots and small value classes.
+
+# ============= Service Layer =============
+- rule: Use service functions to coordinate domain logic and infrastructure
+  explanation: Service layer glues together repositories, domain logic, and UoW. It should not contain business rules itself.
+
+- rule: Keep services framework-agnostic
+  explanation: Do not import FastAPI or SQLAlchemy here. Accept commands (DTOs) and return domain outcomes or results.
+
+# ============= Repository Pattern =============
+- rule: Define abstract repository interfaces in domain layer
+  explanation: These interfaces describe the operations needed (e.g., add, get_by_id) and return domain models.
+
+- rule: Implement repositories with SQLAlchemy in the infrastructure layer
+  explanation: Concrete repositories use SQLAlchemy and map between ORM and domain models.
+
+- rule: Repositories must not return ORM objects
+  explanation: Always convert to domain entities before returning to the service layer.
+
+# ============= Unit of Work =============
+- rule: Use a Unit of Work to manage transactions
+  explanation: Implement a UoW pattern to wrap database sessions and coordinate repository operations.
+
+- rule: Commit or rollback through UoW only
+  explanation: Ensure that transactional boundaries are enforced by the UoW, not scattered through service logic.
+
+# ============= FastAPI Entry Points =============
+- rule: FastAPI routes must be thin
+  explanation: Routes receive input (via Pydantic), pass commands to the message bus or service layer, and return responses.
+
+- rule: Validate input using Pydantic models in entrypoints
+  explanation: Use FastAPI’s Pydantic request models to validate and transform user input into command objects.
+
+- rule: Routes must not contain business logic
+  explanation: Business rules belong in the domain layer. The route should only handle HTTP concerns.
+
+- rule: Routes must not directly access the database or repositories
+  explanation: All DB access goes through service layer via Unit of Work.
+
+# ============= SQLAlchemy and Infrastructure =============
+- rule: Map ORM models to/from domain models in infrastructure
+  explanation: Create mapping logic that translates between SQLAlchemy models and domain entities.
+
+- rule: SQLAlchemy models live only in the infrastructure layer
+  explanation: They should not be used outside of repositories or DB-related logic.
+
+- rule: Use SQLAlchemy’s session context manager inside UoW
+  explanation: Manage database lifecycle within the Unit of Work context.
+
+# ============= React Frontend Integration =============
+- rule: Frontend communicates with FastAPI via REST/JSON only
+  explanation: Do not embed business logic in frontend. React should call FastAPI endpoints and render results.
+
+- rule: Use DTOs (Pydantic) for API contracts
+  explanation: Define request and response schemas explicitly with Pydantic. Ensure type-safety between frontend and backend.
+
+- rule: Handle domain errors with proper HTTP status codes
+  explanation: Raise HTTP exceptions in FastAPI based on known domain failures (e.g., 404 for not found, 422 for invalid input).
+
+# ============= TDD and Testing =============
+- rule: All business logic must be unit tested
+  explanation: Write unit tests for domain models, service layer, and UoW before implementing logic.
+
+- rule: Use test doubles for infrastructure in unit tests
+  explanation: Use fake repositories and UoWs in tests. Avoid real DB or HTTP.
+
+- rule: Integration tests should test full flow: API → Service → Infra
+  explanation: Use FastAPI’s test client to verify end-to-end behavior. Don’t test internal details here.
+
+# ============= Event-Driven Architecture (Optional) =============
+- rule: Use events to decouple post-commit side effects
+  explanation: If using events (e.g. sending emails or notifications), publish them from domain layer and handle them separately.
+
+- rule: Events must be defined as data classes
+  explanation: Define them with attributes only — no methods. Used for communication between layers or services.
+
+# ============= Style & Best Practices =============
+- rule: Make dependencies explicit via constructor injection
+  explanation: Pass dependencies explicitly to services, UoWs, or FastAPI routes. Avoid global variables.
+
+- rule: Prioritize testability and clarity over brevity
+  explanation: Choose clear, testable code patterns over DRY at all costs. Prefer readability.
+
+- rule: Use Python type hints everywhere
+  explanation: Type all function signatures and class attributes, especially across layers.
+
+- rule: Domain models must not raise HTTP exceptions
+  explanation: HTTP belongs to the presentation layer only. Convert domain errors to HTTP responses in FastAPI routes.

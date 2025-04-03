@@ -1,41 +1,32 @@
-# Secrets and Credentials Security
+# FastAPI Backend
 
-This project uses pre-commit hooks to help prevent accidentally committing sensitive information to the repository. The following security measures are in place:
-
-## Pre-commit hooks
-
-The project uses [pre-commit](https://pre-commit.com/) with the following hooks:
-
-- **detect-secrets**: Scans for potential secrets or credentials in the codebase
-- **trailing-whitespace**: Removes trailing whitespace
-- **end-of-file-fixer**: Ensures files end with a newline
-- **check-yaml**: Validates YAML files
-- **check-added-large-files**: Prevents large files from being committed
+A minimal FastAPI backend.
 
 ## Setup
 
-1. The pre-commit hooks are already installed and should run automatically before each commit.
-2. If you make a new clone of the repository, you'll need to run: `pip install pre-commit detect-secrets` and then `pre-commit install`.
-
-## Security best practices
-
-- Keep sensitive information in `.env` files (which are gitignored)
-- Never commit API keys, passwords, or other credentials directly in code
-- Use environment variables for sensitive configuration
-- Consider using a secrets management service for production environments
-
-## What to do if you accidentally commit secrets
-
-If you accidentally commit sensitive information:
-
-1. Change the compromised secret immediately
-2. Remove the secret from git history using tools like `git filter-branch` or BFG Repo-Cleaner
-3. Force push the changes to remove the secret from the repository history
-
-## Testing the hooks
-
-You can manually run the pre-commit hooks using:
-
-```bash
-pre-commit run --all-files
+1. Install dependencies:
 ```
+pip install -r requirements.txt
+```
+
+2. Run the server:
+```
+python backend.py
+```
+
+The server will start at http://localhost:8000
+
+## API Documentation
+
+Once the server is running, you can access the API documentation at:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+## Testing
+
+Run the tests with:
+```
+pytest
+```
+
+This will execute the test suite and verify that the backend is working correctly.

@@ -394,9 +394,25 @@ class CombinedIncomeStatements:
             ticker (str): The company ticker symbol
             form_type (str, optional): The form type used to filter statements (e.g., '10-K', '10-Q')
         """
-        self.data = data
+        self.df = data
         self.ticker = ticker
         self.form_type = form_type
+
+    def format_indexes(self, repo):
+        """
+        Format the dataframe to make it more readable.
+        """
+        indexes = repo.make_index_readable(self.df.index.tolist())
+        self.df.index = indexes
+        return self.df
+
+    def format_columns(self, repo):
+        """
+        Format the dataframe to make it more readable.
+        """
+        columns = repo.make_column_readable(self.df.columns.tolist())
+        self.df.columns = columns
+        return self.df
 
     def get_metric(self, metric_name):
         """
@@ -408,8 +424,8 @@ class CombinedIncomeStatements:
         Returns:
             pd.Series: The metric values across all time periods
         """
-        if metric_name in self.data.index:
-            return self.data.loc[metric_name]
+        if metric_name in self.df.index:
+            return self.df.loc[metric_name]
         return None
 
     def get_period(self, period):
@@ -422,8 +438,8 @@ class CombinedIncomeStatements:
         Returns:
             pd.Series: All metrics for the specified period
         """
-        if period in self.data.columns:
-            return self.data[period]
+        if period in self.df.columns:
+            return self.df[period]
         return None
 
     def get_all_periods(self):
@@ -433,7 +449,7 @@ class CombinedIncomeStatements:
         Returns:
             list: All time periods in the data
         """
-        return list(self.data.columns)
+        return list(self.df.columns)
 
     def get_all_metrics(self):
         """
@@ -442,8 +458,8 @@ class CombinedIncomeStatements:
         Returns:
             list: All metrics in the data
         """
-        return list(self.data.index)
+        return list(self.df.index)
 
     def __str__(self):
         """Return a string representation of the consolidated data."""
-        return f"CombinedIncomeStatements for {self.ticker} ({self.form_type})\n{self.data}"
+        return f"CombinedIncomeStatements for {self.ticker} ({self.form_type})\n{self.df}"

@@ -102,7 +102,7 @@ class TestService(unittest.TestCase):
             self.assertEqual(result.form_type, '10-K')
 
             # Check the data is correctly stored
-            pd.testing.assert_frame_equal(result.data, test_result_df)
+            pd.testing.assert_frame_equal(result.df, test_result_df)
 
             # Check that metrics can be accessed
             revenue = result.get_metric('Revenue')

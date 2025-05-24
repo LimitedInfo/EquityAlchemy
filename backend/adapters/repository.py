@@ -35,7 +35,7 @@ class SECFilingRepository():
         primary_docs = filings_data.get("primaryDocument", [])
 
         for form, filing_date, accession_number, primary_document in zip(forms, dates, accessions, primary_docs):
-            filings.append(model.Filing(cik, form, filing_date, accession_number, primary_document, self))
+            filings.append(model.Filing(cik, form, filing_date, accession_number, primary_document))
 
         return filings
 
@@ -78,13 +78,13 @@ class FakeSECFilingRepository:
 
         self.filings_by_cik = {
             '0000320193': [
-                model.Filing('0000320193', '10-K', '2024-11-01', '0000320193-24-000123', 'aapl-20240928.htm', self),
-                model.Filing('0000320193', '10-K', '2020-10-30', '0000320193-20-000096', 'aapl-20200926.htm', self),
-                model.Filing('0000320193', '10-Q', '2025-01-31', '0000320193-25-000008', 'aapl-20241228.htm', self),
+                model.Filing('0000320193', '10-K', '2024-11-01', '0000320193-24-000123', 'aapl-20240928.htm'),
+                model.Filing('0000320193', '10-K', '2020-10-30', '0000320193-20-000096', 'aapl-20200926.htm'),
+                model.Filing('0000320193', '10-Q', '2025-01-31', '0000320193-25-000008', 'aapl-20241228.htm'),
             ],
             '0000789019': [
-                model.Filing('0000789019', '10-K', '2024-07-30', '0000950170-24-087843', 'msft-20240630.htm', self),
-                model.Filing('0000789019', '10-Q', '2025-01-29', '0000950170-25-010491', 'msft-20241231.htm', self)
+                model.Filing('0000789019', '10-K', '2024-07-30', '0000950170-24-087843', 'msft-20240630.htm'),
+                model.Filing('0000789019', '10-Q', '2025-01-29', '0000950170-25-010491', 'msft-20241231.htm')
             ]
         }
 

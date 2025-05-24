@@ -30,3 +30,8 @@ pytest
 ```
 
 This will execute the test suite and verify that the backend is working correctly.
+
+
+# Central Index Key, unique identifier for a company or individual.
+# A 20-character string that uniquely identifies a specific filing in the EDGAR system.
+# The main document file within the filing submission.

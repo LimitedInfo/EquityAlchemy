@@ -3,37 +3,34 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import backend.domain.model as model
 import backend.service_layer.service as service
-from backend.adapters.repository import FakeSECFilingRepository
+import backend.service_layer.uow as uow
 
 class TestFinancialServices:
 
-    def test_get_combined_income_statements(self):
-        # Create a fake/mock repository for testing
-        fake_sec_repo = FakeSECFilingRepository()
-        fake_llm_repo = MagicMock()
-
-        # Create test data - a DataFrame that simulates consolidated financial data
-        test_data = pd.DataFrame({
-            '2023-12-31': [100, 50, 50, 5],
-            '2024-12-31': [120, 60, 60, 6]
-        }, index=['Revenue', 'Cost of Revenue', 'Gross Profit', 'EarningsPerShareBasic'])
-
-        # Patch the get_consolidated_financials function to return our test data
-        with patch('backend.service_layer.service.get_consolidated_financials', return_value=test_data):
-            # Call the function we're testing
-            result = service.get_combined_income_statements(
-                'AAPL',
-                fake_sec_repo,
-                llm_repository=fake_llm_repo,
+    def test_get_consolidated_income_statements(self):
+        with uow.FakeUnitOfWork() as uow_instance:
+            result = service.get_consolidated_income_statements(
+                'aapl',
+                uow_instance,
                 form_type='10-K'
             )
 
-            # These assertions verify the correct behavior
-            assert isinstance(result, model.CombinedIncomeStatements)
-            assert result.ticker == 'AAPL'
+            assert isinstance(result, model.CombinedFinancialStatements)
+            assert result.ticker == 'aapl'
             assert result.form_type == '10-K'
             assert not result.df.empty
-            assert 'Revenue' in result.df.index
-            assert 'EarningsPerShareBasic' in result.df.index
-            assert '2023-12-31' in result.df.columns
-            assert '2024-12-31' in result.df.columns
+
+    def test_get_company_by_ticker(self):
+        with uow.FakeUnitOfWork() as uow_instance:
+            company = service.get_company_by_ticker('aapl', uow_instance)
+
+            assert company.name == 'aapl'
+            assert company.ticker == 'aapl'
+            assert company.cik == '0000320193'
+            assert len(company.filings) > 0
+
+    def test_get_dataframe_from_ticker(self):
+        with uow.FakeUnitOfWork() as uow_instance:
+            df = service.get_dataframe_from_ticker('aapl', uow_instance)
+
+            assert isinstance(df, pd.DataFrame)

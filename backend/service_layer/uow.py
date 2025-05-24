@@ -1,41 +1,58 @@
+from abc import ABC, abstractmethod
 import backend.adapters.repository as repository
-import abc
 
-DEFAULT_SESSION_FACTORY = sessionmaker(
-    bind=create_engine(
-        config.get_postgres_uri(),
-    )
-)
 
-class AbstractUnitOfWork(abc.ABC):
-    batches: repository.AbstractRepository
+class AbstractUnitOfWork(ABC):
+    sec_filings: repository.SECFilingRepository
+    llm: repository.LLMRepository
+
+    def __enter__(self):
+        return self
 
     def __exit__(self, *args):
         self.rollback()
 
-    @abc.abstractmethod
+    @abstractmethod
     def commit(self):
         raise NotImplementedError
 
-    @abc.abstractmethod
+    @abstractmethod
     def rollback(self):
         raise NotImplementedError
 
-class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
-    def __init__(self, session_factory=DEFAULT_SESSION_FACTORY):
-        self.session_factory = session_factory
+
+class FakeUnitOfWork(AbstractUnitOfWork):
+    def __init__(self):
+        self.sec_filings = repository.FakeSECFilingRepository()
+        self.llm = None
+        self.committed = False
 
     def __enter__(self):
-        self.session = self.session_factory()
-        self.batches = repository.SqlAlchemyRepository(self.session)
-        return super().__enter__()
+        return self
 
     def __exit__(self, *args):
-        super().__exit__(*args)
-        self.session.close()
+        pass
 
     def commit(self):
-        self.session.commit()
+        self.committed = True
 
     def rollback(self):
-        self.session.rollback()
+        pass
+
+
+class UnitOfWork(AbstractUnitOfWork):
+    def __init__(self):
+        self.sec_filings = repository.SECFilingRepository()
+        self.llm = repository.LLMRepository()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+    def commit(self):
+        pass
+
+    def rollback(self):
+        pass

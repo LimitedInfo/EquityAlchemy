@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 import pandas as pd
+from abc import ABC, abstractmethod
+
+from backend.service_layer import uow
 
 
 @dataclass(frozen=True)
@@ -9,65 +12,61 @@ class FilingType:
 
 
 class Filing:
-    def __init__(self, cik, form, filing_date, accession_number, primary_document, filing_repository) -> None:
-        self.cik = cik # Central Index Key, unique identifier for a company or individual.
+    def __init__(self, cik: str, form: str, filing_date: str, accession_number: str,
+                 primary_document: str, data: dict = None, filing_url: str = None) -> None:
+        self.cik = cik
         self.form = form
         self.filing_date = filing_date
-        self.accession_number = accession_number # A 20-character string that uniquely identifies a specific filing in the EDGAR system.
-        self.primary_document = primary_document # The main document file within the filing submission.
-        self._repository = filing_repository
+        self.accession_number = accession_number
+        self.primary_document = primary_document
+        self._data = data
+        self._filing_url = filing_url
         self._income_statement = None
-        self._filing_url = None
-        self._data = None
 
     @property
     def data(self):
-        if self._data is None:
-            self._data = self._repository.get_filing_data(self.cik, self.accession_number, self.primary_document)
         return self._data
+
+    @data.setter
+    def data(self, value: dict):
+        self._data = value
+        self._income_statement = None
 
     @property
     def filing_url(self):
-        if self._filing_url is None:
-            self._filing_url = self._repository.get_filing_url(self.cik, self.accession_number, self.primary_document)
         return self._filing_url
+
+    @filing_url.setter
+    def filing_url(self, value: str):
+        self._filing_url = value
 
     @property
     def income_statement(self):
-        if self._income_statement is None and self.data is not None:
-            self._income_statement = IncomeStatement(self.data['StatementsOfIncome'], self.form)
+        if self._income_statement is None and self._data is not None:
+            if 'StatementsOfIncome' in self._data:
+                self._income_statement = IncomeStatement(self._data['StatementsOfIncome'], self.form)
         return self._income_statement
 
 
 class Company:
-    def __init__(self, name: str, ticker, filing_repository) -> None:
+    def __init__(self, name: str, ticker: str, cik: str = None, filings: list[Filing] = None) -> None:
         self.name = name
         self.ticker = ticker
-        self._repository = filing_repository
-        self._cik = None
-        self._filings = None
-
-    @property
-    def cik(self):
-        if self._cik is None:
-            self._cik = self._repository.get_cik_by_ticker(self.ticker)
-        return self._cik
+        self.cik = cik
+        self._filings = filings or []
 
     @property
     def filings(self):
-        if self._filings is None:
-            print("getting filings")
-
-            self._filings = self._repository.get_filings(self.cik)
-            print("filings retrieved")
-
-
         return self._filings
 
-    def get_filings_by_type(self, filing_type: FilingType):
-        return [filing for filing in self.filings if filing.form == filing_type]
+    @filings.setter
+    def filings(self, value: list[Filing]):
+        self._filings = value
 
-    def join_financial_statements(self, financial_statements, llm_repository=None):
+    def get_filings_by_type(self, filing_type: str):
+        return [filing for filing in self._filings if filing.form == filing_type]
+
+    def join_financial_statements(self, financial_statements: list[pd.DataFrame], index_mapping: dict = None) -> pd.DataFrame:
         if len(financial_statements) < 2:
             if financial_statements and hasattr(financial_statements[0], 'copy'):
                 return financial_statements[0].copy()
@@ -93,9 +92,7 @@ class Company:
             if current_df.empty:
                 continue
 
-            if llm_repository:
-                index_mapping = llm_repository.map_dataframes(financial_statements[0], current_df)
-
+            if index_mapping:
                 mapped_df = current_df.copy()
                 new_index = []
 
@@ -122,25 +119,28 @@ class Company:
         return result_df
 
     def filter_filings(self, form_type: str='10-K', statement_type: str='income_statement') -> list[Filing]:
-        filings_to_process = self.filings
+        """return the minimal list of filings that covers the maximum number of years. """
+
+        filings_to_process = self._filings
         if form_type:
             filings_to_process = [f for f in filings_to_process if f.form == form_type]
 
         sorted_filings = sorted(filings_to_process, key=lambda f: f.filing_date, reverse=True)
 
-        valid_filings = []
-        for filing in sorted_filings:
-            if hasattr(filing, statement_type) and hasattr(getattr(filing, statement_type), 'table'):
-                valid_filings.append(filing)
-
-        if not valid_filings:
-            return []
+        # load the data for the filings
+        with uow.UnitOfWork() as uow_instance:
+            for filing in sorted_filings:
+                filing._data = uow_instance.sec_filings.get_filing_data(
+                    filing.cik,
+                    filing.accession_number,
+                    filing.primary_document
+                )
 
         covered_years = set()
         selected_filings = []
 
         all_available_years = set()
-        for filing in valid_filings:
+        for filing in sorted_filings:
             statement = getattr(filing, statement_type)
             for col in statement.table.columns:
                 year = col.split('-')[0]
@@ -148,7 +148,7 @@ class Company:
 
         filing_contributions = {}
 
-        for filing in valid_filings:
+        for filing in sorted_filings:
             statement = getattr(filing, statement_type)
             filing_years = set()
             for col in statement.table.columns:
@@ -157,19 +157,19 @@ class Company:
 
             filing_contributions[filing] = filing_years
 
-        if valid_filings:
-            newest_filing = valid_filings[0]
+        if sorted_filings:
+            newest_filing = sorted_filings[0]
             selected_filings.append(newest_filing)
             covered_years.update(filing_contributions[newest_filing])
 
-        if len(valid_filings) > 1:
-            oldest_filing = valid_filings[-1]
+        if len(sorted_filings) > 1:
+            oldest_filing = sorted_filings[-1]
             new_years = filing_contributions[oldest_filing] - covered_years
             if new_years:
                 selected_filings.append(oldest_filing)
                 covered_years.update(filing_contributions[oldest_filing])
 
-        remaining_filings = [f for f in valid_filings if f not in selected_filings]
+        remaining_filings = [f for f in sorted_filings if f not in selected_filings]
         while all_available_years - covered_years and remaining_filings:
             best_filing = None
             max_new_years = 0
@@ -187,15 +187,52 @@ class Company:
             else:
                 break
 
+
         return selected_filings
 
 
-
-class IncomeStatement:
+class AbstractFinancialStatement(ABC):
     def __init__(self, data: dict, form: str) -> None:
         self.raw_data = data
-        self.df = self._process_data()
         self.form = form
+        self.df = self._process_data()
+
+    @abstractmethod
+    def _process_data(self) -> pd.DataFrame:
+        pass
+
+    @property
+    @abstractmethod
+    def table(self) -> pd.DataFrame:
+        pass
+
+    @abstractmethod
+    def get_annual_data(self, include_segment_data: bool = False) -> pd.DataFrame:
+        pass
+
+    @abstractmethod
+    def get_quarterly_data(self) -> pd.DataFrame:
+        pass
+
+    @abstractmethod
+    def get_metric(self, metric_name: str) -> pd.DataFrame:
+        pass
+
+    def get_all_metrics(self) -> list[str]:
+        if self.df.empty:
+            return []
+        return self.df['metric'].unique().tolist() if 'metric' in self.df.columns else []
+
+    def get_all_periods(self) -> list[str]:
+        table = self.table
+        if table.empty:
+            return []
+        return list(table.columns)
+
+
+class IncomeStatement(AbstractFinancialStatement):
+    def __init__(self, data: dict, form: str) -> None:
+        super().__init__(data, form)
 
     def _process_data(self) -> pd.DataFrame:
         rows = []
@@ -296,18 +333,18 @@ class IncomeStatement:
         return self.df[self.df['metric'] == metric_name]
 
 
-class CombinedIncomeStatements:
-    def __init__(self, income_statements: list[IncomeStatement], ticker: str, form_type: str = None) -> None:
-        self.income_statements = income_statements
+class CombinedFinancialStatements:
+    def __init__(self, financial_statements: list[AbstractFinancialStatement], ticker: str, form_type: str = None) -> None:
+        self.financial_statements = financial_statements
         self.ticker = ticker
         self.form_type = form_type
         self.df = self._combine_statements()
 
     def _combine_statements(self) -> pd.DataFrame:
-        if not self.income_statements:
+        if not self.financial_statements:
             return pd.DataFrame()
 
-        tables = [stmt.table for stmt in self.income_statements if not stmt.table.empty]
+        tables = [stmt.table for stmt in self.financial_statements if not stmt.table.empty]
 
         if not tables:
             return pd.DataFrame()
@@ -331,4 +368,4 @@ class CombinedIncomeStatements:
         return result_df
 
     def __str__(self) -> str:
-        return f"CombinedIncomeStatements for {self.ticker} ({self.form_type})\n{self.df}"
+        return f"CombinedFinancialStatements for {self.ticker} ({self.form_type})\n{self.df}"

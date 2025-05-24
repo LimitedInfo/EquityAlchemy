@@ -10,19 +10,7 @@ def get_company_by_ticker(ticker: str, uow_instance: uow.AbstractUnitOfWork) -> 
 
     raw_filings = uow_instance.sec_filings.get_filings(cik)
 
-    filings = []
-    for raw_filing in raw_filings:
-        filing = model.Filing(
-            cik=raw_filing.cik,
-            form=raw_filing.form,
-            filing_date=raw_filing.filing_date,
-            accession_number=raw_filing.accession_number,
-            primary_document=raw_filing.primary_document
-        )
-
-        filings.append(filing)
-
-    return model.Company(name=ticker, ticker=ticker, cik=cik, filings=filings)
+    return model.Company(name=ticker, ticker=ticker, cik=cik, filings=raw_filings)
 
 
 def get_dataframe_from_ticker(ticker: str, repository_or_uow):
@@ -117,11 +105,13 @@ def join_financial_statements_with_mapping(financial_statements: list[pd.DataFra
 
 
 def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUnitOfWork, form_type: str = None) -> model.CombinedFinancialStatements:
+    import time
+
+    start_time = time.time()
     company = get_company_by_ticker(ticker, uow_instance)
+    print(f"Time to get company: {time.time() - start_time:.2f} seconds")
 
-    filtered_filings = company.filter_filings(form_type=form_type, statement_type='income_statement')
-
-    for filing in filtered_filings:
+    for filing in company.get_filings_by_type(form_type):
         filing_data = uow_instance.sec_filings.get_filing_data(
             filing.cik,
             filing.accession_number,
@@ -135,35 +125,35 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
             filing.primary_document
         )
         filing.filing_url = filing_url
+    print(f"Time to process filings: {time.time() - start_time:.2f} seconds")
+
+    start_time = time.time()
+    # NEED TO LOAD THE DATA FOR THE FILINGS before filtering.
+    filtered_filings = company.filter_filings(form_type=form_type, statement_type='income_statement')
+    print(f"Time to filter filings: {time.time() - start_time:.2f} seconds")
+    start_time = time.time()
+
 
 
     if not filtered_filings:
         return model.CombinedFinancialStatements([], ticker, form_type)
 
+    start_time = time.time()
     income_statements = [filing.income_statement for filing in filtered_filings if filing.income_statement]
     combined_statements = model.CombinedFinancialStatements(income_statements, ticker, form_type)
+    print(f"Time to create combined statements: {time.time() - start_time:.2f} seconds")
 
     if uow_instance.llm and len(income_statements) > 1:
+        start_time = time.time()
         tables = [stmt.table for stmt in income_statements if not stmt.table.empty]
         if len(tables) > 1:
             enhanced_df = join_financial_statements_with_mapping(tables, uow_instance)
             enhanced_df = format_dataframe_indexes(enhanced_df, uow_instance)
             combined_statements.df = enhanced_df
+        print(f"Time to enhance statements with LLM: {time.time() - start_time:.2f} seconds")
     elif uow_instance.llm:
+        start_time = time.time()
         combined_statements.df = format_dataframe_indexes(combined_statements.df, uow_instance)
+        print(f"Time to format single statement: {time.time() - start_time:.2f} seconds")
 
     return combined_statements
-
-
-def get_consolidated_financials(ticker: str, sec_repository, llm_repository=None, form_type: str = None, statement_type: str = 'income_statement'):
-    with uow.UnitOfWork() as uow_instance:
-        uow_instance.sec_filings = sec_repository
-        uow_instance.llm = llm_repository
-        return get_consolidated_income_statements(ticker, uow_instance, form_type)
-
-
-def get_combined_income_statements(ticker: str, sec_repository, llm_repository=None, form_type: str = None):
-    with uow.UnitOfWork() as uow_instance:
-        uow_instance.sec_filings = sec_repository
-        uow_instance.llm = llm_repository
-        return get_consolidated_income_statements(ticker, uow_instance, form_type)

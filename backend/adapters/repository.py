@@ -35,7 +35,8 @@ class SECFilingRepository():
         primary_docs = filings_data.get("primaryDocument", [])
 
         for form, filing_date, accession_number, primary_document in zip(forms, dates, accessions, primary_docs):
-            filings.append(model.Filing(cik, form, filing_date, accession_number, primary_document))
+            if form in ['10-q', '10-k', '10-K', '10-Q', '10-Q/A', '10-K/A', '10-q/a', '10-k/a']:
+                filings.append(model.Filing(cik, form, filing_date, accession_number, primary_document))
 
         return filings
 

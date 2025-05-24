@@ -6,7 +6,6 @@ import backend.service_layer.service as service
 import backend.service_layer.uow as uow
 
 class TestFinancialServices:
-
     def test_get_consolidated_income_statements(self):
         with uow.FakeUnitOfWork() as uow_instance:
             result = service.get_consolidated_income_statements(

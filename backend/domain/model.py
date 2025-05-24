@@ -2,7 +2,6 @@ from dataclasses import dataclass
 import pandas as pd
 from abc import ABC, abstractmethod
 
-from backend.service_layer import uow
 
 
 @dataclass(frozen=True)
@@ -121,20 +120,8 @@ class Company:
     def filter_filings(self, form_type: str='10-K', statement_type: str='income_statement') -> list[Filing]:
         """return the minimal list of filings that covers the maximum number of years. """
 
-        filings_to_process = self._filings
-        if form_type:
-            filings_to_process = [f for f in filings_to_process if f.form == form_type]
-
+        filings_to_process = self.get_filings_by_type(form_type)
         sorted_filings = sorted(filings_to_process, key=lambda f: f.filing_date, reverse=True)
-
-        # load the data for the filings
-        with uow.UnitOfWork() as uow_instance:
-            for filing in sorted_filings:
-                filing._data = uow_instance.sec_filings.get_filing_data(
-                    filing.cik,
-                    filing.accession_number,
-                    filing.primary_document
-                )
 
         covered_years = set()
         selected_filings = []

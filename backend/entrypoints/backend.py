@@ -8,9 +8,8 @@ from typing import Dict, Optional, List
 import backend.service_layer.service as service
 import backend.adapters.repository as repository
 import pandas as pd
+import traceback
 
-# Session storage (in-memory for simplicity)
-# In a real app, you'd use Redis, a database, or another persistent store
 sessions: Dict[str, dict] = {}
 
 class User(BaseModel):
@@ -29,11 +28,22 @@ class CORSHeaderMiddleware(BaseHTTPMiddleware):
         return response
 
 app = FastAPI()
-
-# Add custom CORS middleware
 app.add_middleware(CORSHeaderMiddleware)
 
-# Keep existing CORS middleware as well
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    print("--- Unhandled Exception Traceback ---")
+    traceback.print_exc()
+    print("-----------------------------------")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "message": "An internal server error occurred.",
+            "error_type": type(exc).__name__,
+            "details": str(exc),
+        },
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allows all origins
@@ -55,14 +65,9 @@ async def root():
 
 @app.post("/login")
 async def login(user: User, response: Response):
-    # In a real app, validate credentials against a database
-    # For test purposes, accept any login
-
-    # Create a session
     session_id = str(uuid.uuid4())
     sessions[session_id] = {"username": user.username}
 
-    # Set session cookie
     response.set_cookie(key="session_id", value=session_id, httponly=True)
 
     return {"status": "success", "message": "Login successful"}
@@ -73,16 +78,13 @@ async def get_profile(user_data: dict = Depends(get_current_user)):
 
 @app.post("/logout")
 async def logout(response: Response, session_id: Optional[str] = Cookie(None)):
-    # Clear the session
     if session_id and session_id in sessions:
         del sessions[session_id]
 
-    # Clear the cookie - use expires instead of max_age for better compatibility
     response.delete_cookie(key="session_id")
 
     return {"status": "success", "message": "Logout successful"}
 
-# Add new models for financial data
 class FinancialMetric(BaseModel):
     name: str
     values: Dict[str, float]
@@ -106,11 +108,8 @@ async def get_income_statements(ticker: str, form_type: Optional[str] = None):
         FinancialStatements: Combined income statements
     """
     try:
-        # Initialize repositories
         sec_repository = repository.SECFilingRepository()
         llm_repository = repository.LLMRepository()
-
-        # Call the service function
         combined_statements = service.get_combined_income_statements(
             ticker,
             sec_repository,
@@ -118,9 +117,10 @@ async def get_income_statements(ticker: str, form_type: Optional[str] = None):
             form_type=form_type
         )
 
-        # Convert to response model
         metrics = []
-        for metric_name in combined_statements.get_all_metrics():
+        metric_names = combined_statements.get_all_metrics()
+
+        for metric_name in metric_names:
             metric_series = combined_statements.get_metric(metric_name)
             metrics.append(FinancialMetric(
                 name=metric_name,
@@ -134,7 +134,10 @@ async def get_income_statements(ticker: str, form_type: Optional[str] = None):
             periods=combined_statements.get_all_periods()
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching financial data: {str(e)}")
+        print(f"--- Exception in /api/financial/income/{ticker} ---")
+        traceback.print_exc()
+        print("--------------------------------------------------")
+        raise HTTPException(status_code=500, detail=f"Error fetching financial data for {ticker}: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

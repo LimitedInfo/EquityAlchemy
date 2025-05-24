@@ -117,12 +117,11 @@ button:disabled {
 }
 
 .financial-table-container {
-  overflow-x: auto;
   margin-top: 20px;
 }
 
 .financial-table {
-  width: 100%;
+  min-width: 100%;
   border-collapse: collapse;
 }
 

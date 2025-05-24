@@ -54,12 +54,12 @@ class TestService(unittest.TestCase):
 
         try:
             # Act
-            result = service.get_consolidated_financials(ticker, sec_repo, llm_repo, form_type='10-K')
+            result = service.get_consolidated_financials(ticker, sec_repo, llm_repo, form_type='10-K', statement_type='income_statement')
 
             # Assert
-            self.assertIsInstance(result, pd.DataFrame)
-            self.assertEqual(len(result), 2)  # Two metrics in the dataframe
-            self.assertEqual(len(result.columns), 3)  # Three years of data
+            self.assertIsInstance(result, model.CombinedIncomeStatements)
+            self.assertEqual(len(result.df), 2)  # Two metrics in the dataframe
+            self.assertEqual(len(result.df.columns), 3)  # Three years of data
 
             # Check that the correct methods were called
             self.assertTrue(model.Company.join_financial_statements.called)
@@ -740,8 +740,8 @@ class TestRegressions(unittest.TestCase):
             )
 
             # Assert
-            self.assertIsInstance(result, pd.DataFrame)
-            pd.testing.assert_frame_equal(result, expected_result)
+            self.assertIsInstance(result, model.CombinedIncomeStatements)
+            pd.testing.assert_frame_equal(result.df, expected_result)
 
             # Check that the correct methods were called with the right parameters
             model.Company.assert_called_once_with("TEST", "TEST", mock_sec_repository)

@@ -11,7 +11,7 @@ pip install -r requirements.txt
 
 2. Run the server:
 ```
-python backend.py
+python -m uvicorn backend.entrypoints.backend:app --reload
 ```
 
 The server will start at http://localhost:8000

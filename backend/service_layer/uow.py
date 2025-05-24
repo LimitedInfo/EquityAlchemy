@@ -1,49 +1,41 @@
-
 import backend.adapters.repository as repository
-
-
 import abc
 
-DEFAULT_SESSION_FACTORY = sessionmaker(  #(1)
+DEFAULT_SESSION_FACTORY = sessionmaker(
     bind=create_engine(
         config.get_postgres_uri(),
     )
 )
 
-
 class AbstractUnitOfWork(abc.ABC):
-    batches: repository.AbstractRepository  #(1)
+    batches: repository.AbstractRepository
 
-    def __exit__(self, *args):  #(2)
-        self.rollback()  #(4)
+    def __exit__(self, *args):
+        self.rollback()
 
     @abc.abstractmethod
-    def commit(self):  #(3)
+    def commit(self):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def rollback(self):  #(4)
+    def rollback(self):
         raise NotImplementedError
-
-
-
-
 
 class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
     def __init__(self, session_factory=DEFAULT_SESSION_FACTORY):
-        self.session_factory = session_factory  #(1)
+        self.session_factory = session_factory
 
     def __enter__(self):
-        self.session = self.session_factory()  # type: Session  #(2)
-        self.batches = repository.SqlAlchemyRepository(self.session)  #(2)
+        self.session = self.session_factory()
+        self.batches = repository.SqlAlchemyRepository(self.session)
         return super().__enter__()
 
     def __exit__(self, *args):
         super().__exit__(*args)
-        self.session.close()  #(3)
+        self.session.close()
 
-    def commit(self):  #(4)
+    def commit(self):
         self.session.commit()
 
-    def rollback(self):  #(4)
+    def rollback(self):
         self.session.rollback()

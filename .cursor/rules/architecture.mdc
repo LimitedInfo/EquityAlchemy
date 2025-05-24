@@ -3,6 +3,8 @@ description:
 globs:
 alwaysApply: true
 ---
+DO NOT ADD COMMENTS TO ANY PART OF THE CODE!
+
 # ============= General Architecture =============
 - rule: Use layered architecture: domain, service, infrastructure, entrypoints
   explanation: Organize the project into clear layers. Domain contains core logic; service layer orchestrates use cases; infrastructure handles persistence; entrypoints define API endpoints (FastAPI).

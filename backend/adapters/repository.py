@@ -5,12 +5,12 @@ from sec_api import XbrlApi
 import os
 import json
 import google.generativeai as genai
+import traceback
 load_dotenv()
 
 
 class SECFilingRepository():
     def __init__(self):
-        # TODO: make this a variable
         self.headers = {"User-Agent": os.getenv("USER_AGENT")}
 
     def get_cik_by_ticker(self, ticker):
@@ -41,8 +41,11 @@ class SECFilingRepository():
 
     def get_filing_data(self, cik, accession_number, primary_document):
         xbrlApi = XbrlApi(os.getenv("SEC_API_KEY"))
-        data = xbrlApi.xbrl_to_json(htm_url=self.get_filing_url(cik, accession_number, primary_document))
-        return data
+        try:
+            data = xbrlApi.xbrl_to_json(htm_url=self.get_filing_url(cik, accession_number, primary_document))
+            return data
+        except Exception as e:
+            return None
 
     def get_filing_url(self, cik, accession_number, primary_document):
         filing_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_number}/{primary_document}"
@@ -95,7 +98,6 @@ class FakeSECFilingRepository:
             ('0000789019', '0000950170-25-010491', 'msft-20241231.htm'): 'MSFT_10Q_20250129_data.json'
         }
 
-        # Use absolute path for test_data directory
         test_data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'test_data')
         print(f"Loading test data from: {test_data_dir}")
         for key, filename in file_mapping.items():
@@ -121,12 +123,9 @@ class FakeSECFilingRepository:
         return self.filing_data.get(key, {})
 
     def get_filing_url(self, cik, accession_number, primary_document):
-        # Return a fake URL for testing
         return f"https://fake-sec.gov/Archives/edgar/data/{int(cik)}/{accession_number}/{primary_document}"
 
     def _make_request(self, url, headers=None):
-        # This method is not used in the fake repository
-        # It's included to maintain the same interface as the real repository
         return {}
 
 
@@ -142,10 +141,8 @@ class LLMRepository:
         if not self.gemini_api_key:
             raise ValueError("Gemini API key is required")
 
-        # Configure the API key for all future calls
         import google.generativeai as genai
         genai.configure(api_key=self.gemini_api_key)
-        # Return a generative model instance instead of the module itself
         return genai.GenerativeModel('gemini-1.5-flash')
 
     def map_dataframes(self, df1, df2, client=None, max_retries=2):
@@ -155,24 +152,19 @@ class LLMRepository:
         if client is None:
             client = self.gemini_client
 
-        # First convert all numeric data to float for consistency
         df1_numeric = df1.apply(pd.to_numeric)
         df2_numeric = df2.apply(pd.to_numeric)
 
-        # Print the index types for debugging
         print(f"\n=== DEBUG: DATAFRAME MAPPING ===")
         print(f"DF1 index types: {[idx for idx in df1.index]}")
         print(f"DF2 index types: {[idx for idx in df2.index]}")
 
-        # Keep track of problematic indices that might have caused errors
         problematic_indices = []
 
         for attempt in range(max_retries + 1):  # +1 for the initial attempt
             try:
-                # If this is a retry, modify the prompt to avoid problematic indices
                 if attempt > 0:
                     print(f"Retry attempt {attempt} for mapping. Problematic indices: {problematic_indices}")
-                    # Add information about problematic indices to the prompt
                     exclude_note = f"EXCLUDE these problematic indices that caused errors in previous attempts: {problematic_indices}"
                 else:
                     exclude_note = ""
@@ -195,7 +187,6 @@ class LLMRepository:
 
                 print(f"Sending prompt to LLM with {len(list(df1_numeric.index))} rows from DF1 and {len(list(df2_numeric.index))} rows from DF2")
 
-                # Correct the API call to use the appropriate method
                 response = client.generate_content(
                     prompt,
                     generation_config={
@@ -203,25 +194,19 @@ class LLMRepository:
                     }
                 )
 
-                # Get the response text
                 response_text = response.text
                 print(f"Raw LLM response: {response_text[:200]}...") # Print first 200 chars to avoid huge logs
 
-                # Clean up any code blocks or formatting
                 if '```' in response_text:
-                    # Extract content between code blocks
                     response_text = response_text.split('```')[1].strip()
                     print(f"After code block extraction: {response_text[:200]}...")
                 if 'json' in response_text:
-                    # Remove json language identifier
                     response_text = response_text.split('json')[1].strip()
                     print(f"After json identifier removal: {response_text[:200]}...")
 
-                # Parse the JSON response
                 mapping = json.loads(response_text)
                 print(f"Parsed mapping: {mapping}")
 
-                # Handle case where the mapping is a list of dictionaries instead of a single dictionary
                 if isinstance(mapping, list):
                     print("Converting list of dictionaries to a single dictionary")
                     single_mapping = {}
@@ -231,7 +216,6 @@ class LLMRepository:
                     mapping = single_mapping
                     print(f"Converted mapping: {mapping}")
 
-                # Validate the mapping thoroughly
                 valid_mapping = {}
                 for source_idx, target_idx in mapping.items():
                     if source_idx not in df1.index:
@@ -243,14 +227,11 @@ class LLMRepository:
                         problematic_indices.append(source_idx)
                         continue
 
-                    # Add to valid mapping only if both source and target exist
                     valid_mapping[source_idx] = target_idx
 
-                # If valid mapping is empty, retry
                 if not valid_mapping:
                     raise ValueError("No valid mappings found in LLM response")
 
-                # Success! Return the valid mapping
                 print(f"Successfully created valid mapping with {len(valid_mapping)} entries")
                 return valid_mapping
 
@@ -258,14 +239,12 @@ class LLMRepository:
                 print(f"Error parsing JSON (attempt {attempt+1}/{max_retries+1}): {json_err}")
                 print(f"Response text: {response_text}")
 
-                # If this is the last retry, return empty mapping
                 if attempt == max_retries:
                     print("Maximum retries reached. Returning empty mapping.")
                     return {}
             except ValueError as val_err:
                 print(f"Value error in mapping (attempt {attempt+1}/{max_retries+1}): {val_err}")
 
-                # If this is the last retry, return empty mapping
                 if attempt == max_retries:
                     print("Maximum retries reached. Returning empty mapping.")
                     return {}
@@ -273,32 +252,19 @@ class LLMRepository:
                 print(f"Unexpected error in mapping (attempt {attempt+1}/{max_retries+1}): {e}")
                 traceback.print_exc()
 
-                # If this is the last retry, return empty mapping
                 if attempt == max_retries:
                     print("Maximum retries reached. Returning empty mapping.")
                     return {}
 
-        # If we get here, all retries failed
         return {}
 
-    def make_index_readable(self, index_names, client=None, max_retries=2):
-        """
-        Convert technical index names to human readable format using Gemini.
+    def make_index_readable(self, index_names: list[str], client=None, max_retries=2):
 
-        Args:
-            index_names (list): List of technical index names to convert
-            client (GenerativeModel, optional): Gemini client, uses self.gemini_client if None
-            max_retries (int, optional): Maximum number of retries if API call fails
-
-        Returns:
-            dict: Mapping from original index names to readable names
-        """
-        import traceback
 
         if client is None:
             client = self.gemini_client
 
-        for attempt in range(max_retries + 1):  # +1 for the initial attempt
+        for attempt in range(max_retries + 1):
             try:
                 prompt = f"""
                 Convert these financial metric names to more readable, human-friendly names.
@@ -318,25 +284,19 @@ class LLMRepository:
                     }
                 )
 
-                # Get the response text and clean it
                 response_text = response.text
                 print(f"Raw LLM response: {response_text[:200]}...") # Print first 200 chars to avoid huge logs
 
-                # Clean up any code blocks or formatting
                 if '```' in response_text:
-                    # Extract content between code blocks
                     response_text = response_text.split('```')[1].strip()
                     print(f"After code block extraction: {response_text[:200]}...")
                 if 'json' in response_text:
-                    # Remove json language identifier
                     response_text = response_text.split('json')[1].strip()
                     print(f"After json identifier removal: {response_text[:200]}...")
 
-                # Parse the JSON response
                 mapping = json.loads(response_text)
                 print(f"Parsed mapping: {mapping}")
 
-                # Handle case where the mapping is a list of dictionaries instead of a single dictionary
                 if isinstance(mapping, list):
                     print("Converting list of dictionaries to a single dictionary in make_index_readable")
                     single_mapping = {}
@@ -346,22 +306,18 @@ class LLMRepository:
                     mapping = single_mapping
                     print(f"Converted mapping: {mapping}")
 
-                # Validate the mapping thoroughly
                 valid_mapping = {}
                 for source_idx, readable_name in mapping.items():
-                    # Only include mappings for items that were in the original list
                     if source_idx in index_names:
                         valid_mapping[source_idx] = readable_name
                     else:
                         print(f"WARNING: Mapping contains source index '{source_idx}' not in original index names - skipping")
 
-                # If the valid mapping doesn't include all original names, add the missing ones unchanged
                 for name in index_names:
                     if name not in valid_mapping:
                         valid_mapping[name] = name
                         print(f"Adding missing index '{name}' with unchanged name")
 
-                # Success! Return the valid mapping
                 print(f"Successfully created readable mapping with {len(valid_mapping)} entries")
                 return valid_mapping
 
@@ -369,7 +325,6 @@ class LLMRepository:
                 print(f"Error parsing JSON (attempt {attempt+1}/{max_retries+1}): {json_err}")
                 print(f"Response text: {response_text}")
 
-                # If this is the last retry, return unchanged names as fallback
                 if attempt == max_retries:
                     print("Maximum retries reached. Returning unchanged names.")
                     return {name: name for name in index_names}
@@ -378,10 +333,8 @@ class LLMRepository:
                 print(f"Unexpected error in make_index_readable (attempt {attempt+1}/{max_retries+1}): {e}")
                 traceback.print_exc()
 
-                # If this is the last retry, return unchanged names as fallback
                 if attempt == max_retries:
                     print("Maximum retries reached. Returning unchanged names.")
                     return {name: name for name in index_names}
 
-        # If we get here, all retries failed
         return {name: name for name in index_names}

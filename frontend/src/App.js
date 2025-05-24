@@ -1,31 +1,25 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
-import Login from './components/Login';
 import Profile from './components/Profile';
 import FinancialData from './components/FinancialData';
 import './App.css';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
   return (
     <Router>
       <div className="app">
-        <Navbar isAuthenticated={isAuthenticated} setIsAuthenticated={setIsAuthenticated} />
+        <Navbar />
         <main className="content">
           <Routes>
-            <Route path="/login" element={
-              <Login setIsAuthenticated={setIsAuthenticated} />
-            } />
             <Route path="/profile" element={
-              <Profile isAuthenticated={isAuthenticated} />
+              <Profile />
             } />
             <Route path="/financial" element={
-              <FinancialData isAuthenticated={isAuthenticated} />
+              <FinancialData />
             } />
             <Route path="/" element={
-              isAuthenticated ? <Navigate to="/profile" /> : <Navigate to="/login" />
+              <Navigate to="/profile" />
             } />
           </Routes>
         </main>

@@ -2,76 +2,43 @@ import backend.domain.model as model
 import backend.adapters.repository as repository
 import pandas as pd
 
+
 def get_dataframe_from_ticker(ticker: str, repository) -> pd.DataFrame:
     company = model.Company(ticker, ticker, repository)
     filing = company.filings[0]
     return filing.income_statement.table
 
-def get_consolidated_financials(ticker: str, sec_repository, llm_repository=None, form_type=None, statement_type='income_statement'):
-    """
-    Get consolidated financial data for a ticker by filtering filings and joining their statements
 
-    Args:
-        ticker (str): Company ticker symbol
-        sec_repository: Repository for SEC filing data
-        llm_repository: Repository for LLM operations (optional)
-        form_type (str, optional): Filter by filing form type (e.g., '10-K', '10-Q')
-        statement_type (str): The type of statement to filter on ('income_statement', 'balance_sheet', 'cash_flow')
+def format_dataframe_indexes(dataframe: pd.DataFrame, llm_repository) -> pd.DataFrame:
+    if dataframe.empty:
+        return dataframe
 
-    Returns:
-        pd.DataFrame: Consolidated financial statements with all available periods
-    """
+    df = dataframe.copy()
+    index_mapping = llm_repository.make_index_readable(df.index.tolist())
+    df.index = [index_mapping.get(idx, idx) for idx in df.index]
+
+    return df
+
+def get_consolidated_income_statements(ticker: str, sec_repository, llm_repository=None, form_type=None):
     company = model.Company(ticker, ticker, sec_repository)
 
     # Get the minimal set of filings that cover all years
-    filtered_filings = company.filter_filings(form_type=form_type, statement_type=statement_type)
+    filtered_filings = company.filter_filings(form_type=form_type)
 
     if not filtered_filings:
         return pd.DataFrame()
 
-    if len(filtered_filings) == 1:
-        statement = getattr(filtered_filings[0], statement_type)
-        return statement.table
+    income_statements = [filing.income_statement for filing in filtered_filings]
+    combined_statements = model.CombinedIncomeStatements(income_statements, ticker, form_type)
 
-    # Extract the financial statement tables from each filing
-    print(getattr(filtered_filings[0], statement_type))
-    financial_statements = [getattr(filing, statement_type).table for filing in filtered_filings]
+    if llm_repository and len(income_statements) > 1:
+        tables = [stmt.table for stmt in income_statements if not stmt.table.empty]
+        if len(tables) > 1:
+            enhanced_df = company.join_financial_statements(tables, llm_repository)
+            if llm_repository:
+                enhanced_df = format_dataframe_indexes(enhanced_df, llm_repository)
+            combined_statements.df = enhanced_df
+    elif llm_repository:
+        combined_statements.df = format_dataframe_indexes(combined_statements.df, llm_repository)
 
-    # Join financial statements using LLM to map between different naming conventions
-    return company.join_financial_statements(financial_statements, llm_repository=llm_repository)
-
-def get_combined_income_statements(ticker: str, sec_repository, llm_repository=None, form_type=None):
-    """
-    Get a CombinedIncomeStatements object for a ticker.
-
-    Args:
-        ticker (str): Company ticker symbol
-        sec_repository: Repository for SEC filing data
-        llm_repository: Repository for LLM operations (optional)
-        form_type (str, optional): Filter by filing form type (e.g., '10-K', '10-Q')
-
-    Returns:
-        model.CombinedIncomeStatements: Combined income statements object
-    """
-    # Get the consolidated financial data
-    consolidated_data = get_consolidated_financials(
-        ticker,
-        sec_repository,
-        llm_repository=llm_repository,
-        form_type=form_type,
-        statement_type='income_statement'
-    )
-
-    # Create and return the CombinedIncomeStatements object
-    return model.CombinedIncomeStatements(consolidated_data, ticker, form_type)
-
-
-if __name__ == "__main__":
-    # Example of using the combined income statements
-    combined = get_combined_income_statements(
-        "AAPL",
-        repository.SECFilingRepository(),
-        llm_repository=repository.LLMRepository(),
-        form_type='10-K'
-    )
-    print(combined)
+    return combined_statements

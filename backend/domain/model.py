@@ -70,7 +70,10 @@ class Company:
         """return the minimal list of filings that covers the maximum number of years. """
 
         filings_to_process = self.get_filings_by_type(form_type)
-        sorted_filings = sorted(filings_to_process, key=lambda f: f.filing_date, reverse=True)
+
+         # filter out filings that don't have data.
+        filings_to_load = [filing for filing in filings_to_process if filing.data]
+        sorted_filings = sorted(filings_to_load, key=lambda f: f.filing_date, reverse=True)
 
         covered_years = set()
         selected_filings = []
@@ -174,39 +177,41 @@ class IncomeStatement(AbstractFinancialStatement):
         rows = []
 
         for metric, entries in self.raw_data.items():
-            for entry in entries:
+                if isinstance(entries, dict):
+                    entries = [entries]
+                for entry in entries:
 
-                period_data = entry.get('period', {})
-                start_date = None
-                end_date = None
+                    period_data = entry.get('period', {})
+                    start_date = None
+                    end_date = None
 
-                if isinstance(period_data, dict):
-                    start_date = period_data.get('startDate')
-                    end_date = period_data.get('endDate')
-                elif isinstance(period_data, str):
-                    start_date = period_data
-                    end_date = period_data
+                    if isinstance(period_data, dict):
+                        start_date = period_data.get('startDate')
+                        end_date = period_data.get('endDate')
+                    elif isinstance(period_data, str):
+                        start_date = period_data
+                        end_date = period_data
 
-                segment_info = None
-                segment_dimension = None
-                if 'segment' in entry:
-                    if isinstance(entry['segment'], list):
-                        continue
+                    segment_info = None
+                    segment_dimension = None
+                    if 'segment' in entry:
+                        if isinstance(entry['segment'], list):
+                            continue
 
-                    segment_info = entry['segment'].get('value')
-                    segment_dimension = entry['segment'].get('dimension')
+                        segment_info = entry['segment'].get('value')
+                        segment_dimension = entry['segment'].get('dimension')
 
-                row = {
-                    'metric': metric,
-                    'value': float(entry['value']),
-                    'start_date': start_date,
-                    'end_date': end_date,
-                    'unit': entry.get('unitRef'),
-                    'decimals': entry.get('decimals'),
-                    'segment_value': segment_info,
-                    'segment_dimension': segment_dimension
-                }
-                rows.append(row)
+                    row = {
+                        'metric': metric,
+                        'value': float(entry['value']),
+                        'start_date': start_date,
+                        'end_date': end_date,
+                        'unit': entry.get('unitRef'),
+                        'decimals': entry.get('decimals'),
+                        'segment_value': segment_info,
+                        'segment_dimension': segment_dimension
+                    }
+                    rows.append(row)
 
         df = pd.DataFrame(rows)
 

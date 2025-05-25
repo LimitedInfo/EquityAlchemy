@@ -46,6 +46,7 @@ class SECFilingRepository():
             data = xbrlApi.xbrl_to_json(htm_url=self.get_filing_url(cik, accession_number, primary_document))
             return data
         except Exception as e:
+            print(f"Error getting filing data for {cik} {accession_number} {primary_document}: {e}")
             return None
 
     def get_filing_url(self, cik, accession_number, primary_document):

@@ -6,9 +6,12 @@ from pydantic import BaseModel
 import uuid
 from typing import Dict, Optional, List
 import backend.service_layer.service as service
+import backend.service_layer.uow as uow
 import backend.adapters.repository as repository
 import pandas as pd
 import traceback
+from typing import List, Optional
+
 
 sessions: Dict[str, dict] = {}
 
@@ -18,6 +21,16 @@ class User(BaseModel):
 
 class UserProfile(BaseModel):
     username: str
+
+class FinancialMetric(BaseModel):
+    name: str
+    values: Dict[str, float]
+
+class FinancialStatements(BaseModel):
+    ticker: str
+    form_type: Optional[str] = None
+    metrics: List[FinancialMetric]
+    periods: List[str]
 
 class CORSHeaderMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -85,15 +98,7 @@ async def logout(response: Response, session_id: Optional[str] = Cookie(None)):
 
     return {"status": "success", "message": "Logout successful"}
 
-class FinancialMetric(BaseModel):
-    name: str
-    values: Dict[str, float]
 
-class FinancialStatements(BaseModel):
-    ticker: str
-    form_type: Optional[str] = None
-    metrics: List[FinancialMetric]
-    periods: List[str]
 
 @app.get("/api/financial/income/{ticker}")
 async def get_income_statements(ticker: str, form_type: Optional[str] = None):
@@ -108,30 +113,39 @@ async def get_income_statements(ticker: str, form_type: Optional[str] = None):
         FinancialStatements: Combined income statements
     """
     try:
-        sec_repository = repository.SECFilingRepository()
-        llm_repository = repository.LLMRepository()
-        combined_statements = service.get_combined_income_statements(
-            ticker,
-            sec_repository,
-            llm_repository=llm_repository,
-            form_type=form_type
-        )
+        with uow.UnitOfWork() as uow_instance:
+            combined_financial_statements = service.get_consolidated_income_statements(ticker, uow_instance, form_type=form_type)
 
         metrics = []
-        metric_names = combined_statements.get_all_metrics()
+        metric_names = combined_financial_statements.get_all_metrics()
 
         for metric_name in metric_names:
-            metric_series = combined_statements.get_metric(metric_name)
-            metrics.append(FinancialMetric(
-                name=metric_name,
-                values={period: float(value) for period, value in metric_series.items() if pd.notna(value)}
-            ))
+            metric_series = combined_financial_statements.get_metric(metric_name)
+
+            if metric_series is not None:
+                values = {}
+
+                for period, value in metric_series.items():
+                    try:
+                        if isinstance(value, pd.Series):
+                            if not value.empty and pd.notna(value.iloc[0]):
+                                values[period] = float(value.iloc[0])
+                        else:
+                            if pd.notna(value):
+                                values[period] = float(value)
+                    except (ValueError, TypeError, IndexError) as e:
+                        continue
+
+                metrics.append(FinancialMetric(
+                    name=metric_name,
+                    values=values
+                ))
 
         return FinancialStatements(
-            ticker=combined_statements.ticker,
-            form_type=combined_statements.form_type,
+            ticker=combined_financial_statements.ticker,
+            form_type=combined_financial_statements.form_type,
             metrics=metrics,
-            periods=combined_statements.get_all_periods()
+            periods=combined_financial_statements.get_all_periods()
         )
     except Exception as e:
         print(f"--- Exception in /api/financial/income/{ticker} ---")

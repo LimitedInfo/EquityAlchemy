@@ -65,57 +65,6 @@ class Company:
     def get_filings_by_type(self, filing_type: str):
         return [filing for filing in self._filings if filing.form == filing_type]
 
-    def join_financial_statements(self, financial_statements: list[pd.DataFrame], index_mapping: dict = None) -> pd.DataFrame:
-        if len(financial_statements) < 2:
-            if financial_statements and hasattr(financial_statements[0], 'copy'):
-                return financial_statements[0].copy()
-            elif financial_statements:
-                if isinstance(financial_statements[0], pd.DataFrame):
-                    return financial_statements[0].copy()
-                else:
-                    return pd.DataFrame()
-            else:
-                return pd.DataFrame()
-
-        if not isinstance(financial_statements[0], pd.DataFrame):
-            raise TypeError("Expected a DataFrame object, but got {0}".format(type(financial_statements[0])))
-
-        result_df = financial_statements[0].copy()
-
-        for i, statement in enumerate(financial_statements[1:], 1):
-            if not isinstance(statement, pd.DataFrame):
-                raise TypeError("Expected a DataFrame object at index {0}, but got {1}".format(i, type(statement)))
-
-            current_df = statement
-
-            if current_df.empty:
-                continue
-
-            if index_mapping:
-                mapped_df = current_df.copy()
-                new_index = []
-
-                for idx in current_df.index:
-                    found = False
-                    for base_idx, mapped_idx in index_mapping.items():
-                        if idx == mapped_idx:
-                            new_index.append(base_idx)
-                            found = True
-                            break
-
-                    if not found:
-                        new_index.append(idx)
-
-                mapped_df.index = new_index
-
-                new_columns = [col for col in mapped_df.columns if col not in result_df.columns]
-                if new_columns:
-                    for col in new_columns:
-                        for idx in result_df.index:
-                            if idx in mapped_df.index:
-                                result_df.loc[idx, col] = mapped_df.loc[idx, col]
-
-        return result_df
 
     def filter_filings(self, form_type: str='10-K', statement_type: str='income_statement') -> list[Filing]:
         """return the minimal list of filings that covers the maximum number of years. """
@@ -353,6 +302,22 @@ class CombinedFinancialStatements:
                             result_df.loc[idx, col] = current_df.loc[idx, col]
 
         return result_df
+
+    def get_metric(self, metric_name):
+        if metric_name in self.df.index:
+            return self.df.loc[metric_name]
+        return None
+
+    def get_period(self, period):
+        if period in self.df.columns:
+            return self.df[period]
+        return None
+
+    def get_all_periods(self):
+        return list(self.df.columns)
+
+    def get_all_metrics(self):
+        return list(self.df.index)
 
     def __str__(self) -> str:
         return f"CombinedFinancialStatements for {self.ticker} ({self.form_type})\n{self.df}"

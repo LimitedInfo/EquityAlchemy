@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import pandas as pd
 from abc import ABC, abstractmethod
+from typing import List, Optional
 
 
 
@@ -128,6 +129,66 @@ class Company:
 
 
         return selected_filings
+
+    def get_most_recent_filing(filings_list: list[Filing], form_type: str):
+        if form_type == '10-K':
+            return filings_list[0]
+        elif form_type == '10-Q':
+            return filings_list[3]
+
+    def get_skip_amount(last_filing: Filing, form_type: str):
+        if last_filing.data and last_filing.income_statement:
+            print(f"Years covered in last filing ({last_filing.filing_date}):")
+            print(last_filing.income_statement.table.columns)
+
+        year_interval = len(last_filing.income_statement.table.columns)
+        return (year_interval - 1) * 3 if form_type == '10-Q' else (year_interval - 1) * 1
+
+    def select_filings_with_processing_pattern(self,
+        filings_list: List[Filing],
+        form_type: str
+    ) -> List[Filing]:
+
+
+        if form_type == '10-K':
+            process_count = 1
+        elif form_type == '10-Q':
+            process_count = 3
+
+        skip_count = Company.get_skip_amount(filings_list[0], form_type)
+
+
+        if process_count <= 0:
+            return []
+
+        selected = []
+        idx = 0
+        total_filings = len(filings_list)
+
+        while idx < total_filings:
+            # Process N filings
+            end_process_idx = min(idx + process_count, total_filings)
+            selected.extend(filings_list[idx:end_process_idx])
+            idx = end_process_idx
+
+            # If we've processed all filings, break
+            if idx >= total_filings:
+                break
+
+            # Skip M filings
+            idx += skip_count
+
+        # Add the last filing if it's not already in the list
+        if form_type == '10-K':
+            if filings_list[-1] not in selected:
+                selected.append(filings_list[-1])
+        elif form_type == '10-Q':
+            for filing in filings_list[-3:]:
+                if filing not in selected:
+                    selected.append(filing)
+
+        return selected
+
 
 
 class AbstractFinancialStatement(ABC):

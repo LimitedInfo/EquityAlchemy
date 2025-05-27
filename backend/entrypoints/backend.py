@@ -102,16 +102,6 @@ async def logout(response: Response, session_id: Optional[str] = Cookie(None)):
 
 @app.get("/api/financial/income/{ticker}")
 async def get_income_statements(ticker: str, form_type: Optional[str] = None):
-    """
-    Get combined income statements for a company.
-
-    Args:
-        ticker: Company ticker symbol
-        form_type: Optional form type to filter by (e.g., '10-K', '10-Q')
-
-    Returns:
-        FinancialStatements: Combined income statements
-    """
     try:
         with uow.UnitOfWork() as uow_instance:
             combined_financial_statements = service.get_consolidated_income_statements(ticker, uow_instance, form_type=form_type)

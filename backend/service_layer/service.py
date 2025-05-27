@@ -109,7 +109,12 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
 
     # Get filings based on form_type
     if form_type:
-        filings_to_load = company.get_filings_by_type(form_type)
+        if form_type == '10-K':
+            filings_to_load = company.get_filings_by_type(form_type)
+        else:
+            filings_to_load = company.get_filings_by_type(form_type)
+            filings_to_load.append(company.get_filings_by_type('10-K'))
+
     else:
         filings_to_load = company.filings
 
@@ -129,7 +134,7 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
         filing.filing_url = filing_url
 
     # NEED TO LOAD THE DATA FOR THE FILINGS before filtering.
-    if form_type:
+    if form_type == '10-K':
         filtered_filings = company.filter_filings(form_type=form_type, statement_type='income_statement')
     else:
         # When no form_type specified, get all filings with income statements

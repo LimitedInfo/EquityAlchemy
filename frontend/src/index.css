@@ -1,9 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+
+:root {
+  --alchemy-black: #121212;
+  --midnight-grey: #1E1E24;
+  --dark-slate: #2A2C37;
+  --medium-slate: #3A3F4B;
+  --light-slate: #565B6A;
+  --neon-green: #00D68A;
+  --pale-mint: #B5EAD7;
+  --text-primary: #F2F2F2;
+  --text-secondary: #C8C8C8;
+
+  --font-family: 'Inter', sans-serif;
+  --radius: 6px;
+  --shadow: rgba(0, 0, 0, 0.2) 0px 4px 12px;
+  --shadow-hover: rgba(0, 0, 0, 0.25) 0px 6px 16px;
+  --accent-shadow: rgba(0, 214, 138, 0.12) 0px 4px 12px;
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-    Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-family);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--alchemy-black);
+  color: var(--text-primary);
+  line-height: 1.6;
 }
 
 code {
@@ -22,16 +44,24 @@ code {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  background-color: #333;
-  color: white;
+  background-color: var(--midnight-grey);
+  color: var(--text-primary);
   height: 60px;
+  border-bottom: 1px solid var(--dark-slate);
+  box-shadow: var(--shadow);
 }
 
 .navbar-logo a {
-  color: white;
+  color: var(--text-primary);
   text-decoration: none;
   font-size: 1.5rem;
-  font-weight: bold;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.navbar-logo a:hover {
+  color: var(--neon-green);
+  transition: color 0.2s ease;
 }
 
 .navbar-links {
@@ -46,101 +76,26 @@ code {
 }
 
 .navbar-links a {
-  color: white;
+  color: var(--text-primary);
   text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.navbar-links a:hover {
+  color: var(--neon-green);
 }
 
 .navbar-links button {
   background: none;
   border: none;
-  color: white;
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 1rem;
+  font-weight: 500;
+  transition: color 0.2s ease;
 }
 
-.content {
-  flex: 1;
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
-}
-
-.login-container,
-.profile-container,
-.financial-container {
-  max-width: 600px;
-  margin: 40px auto;
-  padding: 20px;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
-button {
-  padding: 8px 16px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-button:hover {
-  background-color: #0069d9;
-}
-
-button:disabled {
-  background-color: #6c757d;
-  cursor: not-allowed;
-}
-
-.error {
-  color: #dc3545;
-  margin: 10px 0;
-}
-
-.financial-table-container {
-  margin-top: 20px;
-}
-
-.financial-table {
-  min-width: 100%;
-  border-collapse: collapse;
-}
-
-.financial-table th,
-.financial-table td {
-  padding: 10px;
-  border: 1px solid #ddd;
-  text-align: right;
-}
-
-.financial-table th:first-child,
-.financial-table td:first-child {
-  text-align: left;
-}
-
-.financial-table th {
-  background-color: #f5f5f5;
-}
-
-.financial-results {
-  margin-top: 30px;
+.navbar-links button:hover {
+  color: var(--neon-green);
 }

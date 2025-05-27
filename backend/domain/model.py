@@ -179,7 +179,10 @@ class IncomeStatement(AbstractFinancialStatement):
         for metric, entries in self.raw_data.items():
                 if isinstance(entries, dict):
                     entries = [entries]
+                # at some point to implement segment data we can make a change here.
                 for entry in entries:
+                    if 'segment' in entry or 'value' not in entry:
+                        continue
 
                     period_data = entry.get('period', {})
                     start_date = None
@@ -250,6 +253,11 @@ class IncomeStatement(AbstractFinancialStatement):
 
         pivoted_df = annual_data.pivot_table(index='metric', columns='date_range', values='value')
 
+        nan_threshold = len(pivoted_df) * 0.5
+        columns_to_drop = [col for col in pivoted_df.columns if pivoted_df[col].isna().sum() > nan_threshold]
+        pivoted_df = pivoted_df.drop(columns=columns_to_drop)
+        print(pivoted_df.columns)
+
         return pivoted_df
 
     def get_quarterly_data(self) -> pd.DataFrame:
@@ -267,6 +275,11 @@ class IncomeStatement(AbstractFinancialStatement):
         quarterly_data['date_range'] = quarterly_data['start_date'].dt.strftime('%Y-%m-%d') + ':' + quarterly_data['end_date'].dt.strftime('%Y-%m-%d')
 
         pivoted_df = quarterly_data.pivot_table(index='metric', columns='date_range', values='value')
+
+        nan_threshold = len(pivoted_df) * 0.5
+        columns_to_drop = [col for col in pivoted_df.columns if pivoted_df[col].isna().sum() > nan_threshold]
+        pivoted_df = pivoted_df.drop(columns=columns_to_drop)
+        print(pivoted_df.columns)
 
         return pivoted_df
 

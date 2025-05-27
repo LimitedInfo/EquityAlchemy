@@ -11,9 +11,43 @@ class FilingType:
     quarterly_report = '10-Q'
 
 
+@dataclass
+class CoverPage:
+    document_type: Optional[str] = None
+    document_quarterly_report: Optional[bool] = None
+    document_period_end_date: Optional[str] = None
+    document_transition_report: Optional[bool] = None
+    entity_file_number: Optional[str] = None
+    entity_incorporation_state_country_code: Optional[str] = None
+    entity_tax_identification_number: Optional[str] = None
+    entity_address_line1: Optional[str] = None
+    entity_address_city: Optional[str] = None
+    entity_address_country: Optional[str] = None
+    entity_address_postal_code: Optional[str] = None
+    city_area_code: Optional[str] = None
+    local_phone_number: Optional[str] = None
+    security_12b_title: Optional[str] = None
+    trading_symbol: Optional[str] = None
+    security_exchange_name: Optional[str] = None
+    entity_current_reporting_status: Optional[str] = None
+    entity_interactive_data_current: Optional[str] = None
+    entity_filer_category: Optional[str] = None
+    entity_small_business: Optional[bool] = None
+    entity_emerging_growth_company: Optional[bool] = None
+    entity_shell_company: Optional[bool] = None
+    entity_common_stock_shares_outstanding: Optional[int] = None
+    entity_registrant_name: Optional[str] = None
+    entity_central_index_key: Optional[str] = None
+    amendment_flag: Optional[bool] = None
+    document_fiscal_year_focus: Optional[str] = None
+    document_fiscal_period_focus: Optional[str] = None
+    current_fiscal_year_end_date: Optional[str] = None
+
+
 class Filing:
     def __init__(self, cik: str, form: str, filing_date: str, accession_number: str,
-                 primary_document: str, data: dict = None, filing_url: str = None) -> None:
+                 primary_document: str, data: dict = None, filing_url: str = None,
+                 cover_page: CoverPage = None) -> None:
         self.cik = cik
         self.form = form
         self.filing_date = filing_date
@@ -22,6 +56,7 @@ class Filing:
         self._data = data
         self._filing_url = filing_url
         self._income_statement = None
+        self._cover_page = cover_page
 
     @property
     def data(self):
@@ -41,10 +76,18 @@ class Filing:
         self._filing_url = value
 
     @property
+    def cover_page(self):
+        return self._cover_page
+
+    @cover_page.setter
+    def cover_page(self, value: CoverPage):
+        self._cover_page = value
+
+    @property
     def income_statement(self):
         if self._income_statement is None and self._data is not None:
             if 'StatementsOfIncome' in self._data:
-                self._income_statement = IncomeStatement(self._data['StatementsOfIncome'], self.form)
+                self._income_statement = IncomeStatement(self._data['StatementsOfIncome'], self.form, self._data.get('cov'))
         return self._income_statement
 
 
@@ -192,9 +235,10 @@ class Company:
 
 
 class AbstractFinancialStatement(ABC):
-    def __init__(self, data: dict, form: str) -> None:
-        self.raw_data = data
+    def __init__(self, data: dict, form: str, fiscal_period: str) -> None:
+        self.data = data
         self.form = form
+        self.fiscal_period = fiscal_period
         self.df = self._process_data()
 
     @abstractmethod
@@ -231,13 +275,13 @@ class AbstractFinancialStatement(ABC):
 
 
 class IncomeStatement(AbstractFinancialStatement):
-    def __init__(self, data: dict, form: str) -> None:
-        super().__init__(data, form)
+    def __init__(self, data: dict, form: str, fiscal_period: str) -> None:
+        AbstractFinancialStatement.__init__(self, data, form, fiscal_period)
 
     def _process_data(self) -> pd.DataFrame:
         rows = []
 
-        for metric, entries in self.raw_data.items():
+        for metric, entries in self.data.items():
                 if isinstance(entries, dict):
                     entries = [entries]
                 # at some point to implement segment data we can make a change here.

@@ -1,6 +1,7 @@
 import requests
 from dotenv import load_dotenv
 import backend.domain.model as model
+from backend.adapters.filing_mapper import FilingMapper
 from sec_api import XbrlApi
 import os
 import json
@@ -36,18 +37,23 @@ class SECFilingRepository():
 
         for form, filing_date, accession_number, primary_document in zip(forms, dates, accessions, primary_docs):
             if form in ['10-q', '10-k', '10-K', '10-Q', '10-Q/A', '10-K/A', '10-q/a', '10-k/a']:
-                filings.append(model.Filing(cik, form, filing_date, accession_number, primary_document))
+                filing = model.Filing(cik, form, filing_date, accession_number, primary_document)
+                filings.append(filing)
 
         return filings
+
+    def get_cover_page_properties(self, filing):
+        return filing.data.get('CoverPage', {})
 
     def get_filing_data(self, cik, accession_number, primary_document):
         xbrlApi = XbrlApi(os.getenv("SEC_API_KEY"))
         try:
             data = xbrlApi.xbrl_to_json(htm_url=self.get_filing_url(cik, accession_number, primary_document))
-            return data
+            cover_page = FilingMapper.map_cover_page_from_api(data) if data else None
+            return data, cover_page
         except Exception as e:
             print(f"Error getting filing data for {cik} {accession_number} {primary_document}: {e}")
-            return None
+            return None, None
 
     def get_filing_url(self, cik, accession_number, primary_document):
         filing_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_number}/{primary_document}"
@@ -122,7 +128,9 @@ class FakeSECFilingRepository:
 
     def get_filing_data(self, cik, accession_number, primary_document):
         key = (cik, accession_number, primary_document)
-        return self.filing_data.get(key, {})
+        data = self.filing_data.get(key, {})
+        cover_page = FilingMapper.map_cover_page_from_api(data) if data else None
+        return data, cover_page
 
     def get_filing_url(self, cik, accession_number, primary_document):
         return f"https://fake-sec.gov/Archives/edgar/data/{int(cik)}/{accession_number}/{primary_document}"

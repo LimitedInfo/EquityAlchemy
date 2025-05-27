@@ -107,24 +107,46 @@ def join_financial_statements_with_mapping(financial_statements: list[pd.DataFra
 def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUnitOfWork, form_type: str = None) -> model.CombinedFinancialStatements:
     company = get_company_by_ticker(ticker, uow_instance)
 
-    # Get filings based on form_type
-    if form_type:
-        if form_type == '10-K':
-            filings_to_load = company.get_filings_by_type(form_type)
-        else:
-            filings_to_load = company.get_filings_by_type(form_type)
-            filings_to_load.append(company.get_filings_by_type('10-K'))
 
+    # always get the 10-K filings because we will need to supply the 10-Q filings.
+    annual_filings_to_load = company.get_filings_by_type('10-K')
+    # get data for the first filing so we can get the number of years covered.
+    filing_data, cover_page = uow_instance.sec_filings.get_filing_data(
+        annual_filings_to_load[0].cik,
+        annual_filings_to_load[0].accession_number,
+        annual_filings_to_load[0].primary_document
+    )
+    annual_filings_to_load[0].data = filing_data
+    annual_filings_to_load[0].cover_page = cover_page
+    annual_filings_to_load = company.select_filings_with_processing_pattern(annual_filings_to_load, '10-K')
+
+
+    if form_type == '10-Q':
+        quarterly_filings_to_load = company.get_filings_by_type('10-Q')
+        # get data for the first filing so we can get the number of years covered.
+        filing_data, cover_page = uow_instance.sec_filings.get_filing_data(
+            quarterly_filings_to_load[0].cik,
+            quarterly_filings_to_load[0].accession_number,
+            quarterly_filings_to_load[0].primary_document
+        )
+        quarterly_filings_to_load[0].data = filing_data
+        quarterly_filings_to_load[0].cover_page = cover_page
+        quarterly_filings_to_load = company.select_filings_with_processing_pattern(quarterly_filings_to_load, '10-Q')
+
+    if form_type == '10-Q':
+        filings_to_load = annual_filings_to_load + quarterly_filings_to_load
     else:
-        filings_to_load = company.filings
+        filings_to_load = annual_filings_to_load
+
 
     for filing in filings_to_load:
-        filing_data = uow_instance.sec_filings.get_filing_data(
+        filing_data, cover_page = uow_instance.sec_filings.get_filing_data(
             filing.cik,
             filing.accession_number,
             filing.primary_document
         )
         filing.data = filing_data
+        filing.cover_page = cover_page
 
         filing_url = uow_instance.sec_filings.get_filing_url(
             filing.cik,
@@ -133,17 +155,11 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
         )
         filing.filing_url = filing_url
 
-    # NEED TO LOAD THE DATA FOR THE FILINGS before filtering.
-    if form_type == '10-K':
-        filtered_filings = company.filter_filings(form_type=form_type, statement_type='income_statement')
-    else:
-        # When no form_type specified, get all filings with income statements
-        filtered_filings = [f for f in company.filings if f.data and 'StatementsOfIncome' in f.data]
 
-    if not filtered_filings:
+    if not filings_to_load:
         return model.CombinedFinancialStatements([], ticker, form_type)
 
-    income_statements = [filing.income_statement for filing in filtered_filings if filing.income_statement]
+    income_statements = [filing.income_statement for filing in filings_to_load if filing.income_statement]
     combined_statements = model.CombinedFinancialStatements(income_statements, ticker, form_type)
 
     if uow_instance.llm and len(income_statements) > 1:

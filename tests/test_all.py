@@ -495,17 +495,25 @@ class TestSECFilingRepository(unittest.TestCase):
         repo = repository.FakeSECFilingRepository()
 
         aapl = model.Company("Apple", "AAPL", repo)
+        test_form = None
         for filing in aapl.filings:
             if filing.form == "10-K":
                 test_form = filing
+                break
+
+        self.assertIsNotNone(test_form, "Could not find a 10-K filing")
 
         # Act
-        result = repo.get_filing_data(test_form.cik, test_form.accession_number, test_form.primary_document)
+        result, cover_page = repo.get_filing_data(test_form.cik, test_form.accession_number, test_form.primary_document)
 
         # Assert
         self.assertIsInstance(result, dict)
         print(result)
         self.assertEqual(result["CoverPage"]["DocumentType"], "10-K")
+
+        # Also test the cover page object
+        self.assertIsNotNone(cover_page)
+        self.assertEqual(cover_page.document_type, "10-K")
 
     def test_filing_data_incomestatement_returns_dictionary(self):
         # Arrange

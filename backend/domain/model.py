@@ -106,8 +106,10 @@ class Company:
     def filings(self, value: list[Filing]):
         self._filings = value
 
-    def get_filings_by_type(self, filing_type: str):
-        return [filing for filing in self._filings if filing.form == filing_type]
+    def get_filings_by_type(self, filing_type: str | list[str]):
+        if isinstance(filing_type, str):
+            return [filing for filing in self._filings if filing.form == filing_type]
+        return [filing for filing in self._filings if filing.form in filing_type]
 
 
     def filter_filings(self, form_type: str='10-K', statement_type: str='income_statement') -> list[Filing]:
@@ -187,12 +189,7 @@ class Company:
         year_interval = len(last_filing.income_statement.table.columns)
         return (year_interval - 1) * 3 if form_type == '10-Q' else (year_interval - 1) * 1
 
-    def select_filings_with_processing_pattern(self,
-        filings_list: List[Filing],
-        form_type: str
-    ) -> List[Filing]:
-
-
+    def select_filings_with_processing_pattern(self,filings_list: List[Filing], form_type: str) -> List[Filing]:
         if form_type == '10-K':
             process_count = 1
         elif form_type == '10-Q':
@@ -393,8 +390,9 @@ class IncomeStatement(AbstractFinancialStatement):
 
 
 class CombinedFinancialStatements:
-    def __init__(self, financial_statements: list[AbstractFinancialStatement], ticker: str, form_type: str = None) -> None:
+    def __init__(self, financial_statements: list[AbstractFinancialStatement], source_filings: list[Filing], ticker: str, form_type: str = None) -> None:
         self.financial_statements = financial_statements
+        self.source_filings = source_filings
         self.ticker = ticker
         self.form_type = form_type
         self.df = self._combine_statements()
@@ -444,3 +442,127 @@ class CombinedFinancialStatements:
 
     def __str__(self) -> str:
         return f"CombinedFinancialStatements for {self.ticker} ({self.form_type})\n{self.df}"
+
+    def analyze_period_coverage(self) -> dict:
+        coverage = {}
+        missing_periods = {}
+
+        for filing in self.source_filings:
+            if not filing.cover_page:
+                continue
+
+            fiscal_year = filing.cover_page.document_fiscal_year_focus
+            fiscal_period = filing.cover_page.document_fiscal_period_focus
+
+            if not fiscal_year or not fiscal_period:
+                continue
+
+            if fiscal_year not in coverage:
+                coverage[fiscal_year] = set()
+                missing_periods[fiscal_year] = {'Q1', 'Q2', 'Q3', 'Q4', 'FY'}
+
+            if fiscal_period in ['Q1', 'Q2', 'Q3', 'Q4']:
+                coverage[fiscal_year].add(fiscal_period)
+                missing_periods[fiscal_year].discard(fiscal_period)
+            elif fiscal_period == 'FY' or filing.form == '10-K':
+                coverage[fiscal_year].add('FY')
+                missing_periods[fiscal_year].discard('FY')
+
+        for year in list(missing_periods.keys()):
+            if not missing_periods[year]:
+                del missing_periods[year]
+
+        return {
+            'coverage_by_year': {year: sorted(list(periods)) for year, periods in coverage.items()},
+            'missing_periods': {year: sorted(list(periods)) for year, periods in missing_periods.items()},
+            'has_complete_quarterly_coverage': self._check_complete_quarterly_coverage(coverage),
+            'years_analyzed': sorted(coverage.keys())
+        }
+
+    def _check_complete_quarterly_coverage(self, coverage: dict) -> dict:
+        complete_coverage = {}
+        for year, periods in coverage.items():
+            complete_coverage[year] = {'Q1', 'Q2', 'Q3', 'Q4'}.issubset(periods)
+        return complete_coverage
+
+    def get_filings_for_period(self, fiscal_year: str, fiscal_period: str) -> list[Filing]:
+        matching_filings = []
+        for filing in self.source_filings:
+            if (filing.cover_page and
+                filing.cover_page.document_fiscal_year_focus == fiscal_year and
+                filing.cover_page.document_fiscal_period_focus == fiscal_period):
+                matching_filings.append(filing)
+        return matching_filings
+
+    def get_missing_periods_summary(self) -> str:
+        analysis = self.analyze_period_coverage()
+        if not analysis['missing_periods']:
+            return f"Complete coverage for all analyzed years: {', '.join(analysis['years_analyzed'])}"
+
+        summary_parts = []
+        for year, missing in analysis['missing_periods'].items():
+            summary_parts.append(f"{year}: missing {', '.join(missing)}")
+
+        return "Missing periods - " + "; ".join(summary_parts)
+
+    def create_implied_missing_quarters(self) -> None:
+        if self.df.empty:
+            return
+
+        annual_columns = []
+        quarterly_columns = []
+
+        for col in self.df.columns:
+            start_str, end_str = col.split(':')
+            start_date = pd.to_datetime(start_str)
+            end_date = pd.to_datetime(end_str)
+            period_days = (end_date - start_date).days
+
+            if 350 < period_days < 380:
+                annual_columns.append(col)
+            elif 85 < period_days < 95:
+                quarterly_columns.append(col)
+
+        for annual_col in annual_columns:
+            annual_start_str, annual_end_str = annual_col.split(':')
+            annual_start = pd.to_datetime(annual_start_str)
+            annual_end = pd.to_datetime(annual_end_str)
+
+            quarters_in_annual = []
+            for q_col in quarterly_columns:
+                q_start_str, q_end_str = q_col.split(':')
+                q_start = pd.to_datetime(q_start_str)
+                q_end = pd.to_datetime(q_end_str)
+
+                if q_start >= annual_start and q_end <= annual_end:
+                    quarters_in_annual.append(q_col)
+
+            if len(quarters_in_annual) == 3:
+                quarter_dates = []
+                for q_col in quarters_in_annual:
+                    q_start_str, q_end_str = q_col.split(':')
+                    quarter_dates.append((pd.to_datetime(q_start_str), pd.to_datetime(q_end_str)))
+
+                quarter_dates.sort(key=lambda x: x[0])
+
+                if quarter_dates[0][0] == annual_start:
+                    implied_start = quarter_dates[-1][1] + pd.Timedelta(days=1)
+                    implied_end = annual_end
+                elif quarter_dates[-1][1] == annual_end:
+                    implied_start = annual_start
+                    implied_end = quarter_dates[0][0] - pd.Timedelta(days=1)
+                else:
+                    for i in range(len(quarter_dates) - 1):
+                        if (quarter_dates[i+1][0] - quarter_dates[i][1]).days > 1:
+                            implied_start = quarter_dates[i][1] + pd.Timedelta(days=1)
+                            implied_end = quarter_dates[i+1][0] - pd.Timedelta(days=1)
+                            break
+                    else:
+                        continue
+
+                implied_col_name = f"{implied_start.strftime('%Y-%m-%d')}:{implied_end.strftime('%Y-%m-%d')}"
+
+                if implied_col_name not in self.df.columns:
+                    self.df[implied_col_name] = self.df[annual_col].fillna(0)
+                    for q_col in quarters_in_annual:
+                        self.df[implied_col_name] -= self.df[q_col].fillna(0)

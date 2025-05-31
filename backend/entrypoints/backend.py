@@ -108,6 +108,7 @@ async def get_income_statements(ticker: str, form_type: Optional[str] = None):
 
         metrics = []
         metric_names = combined_financial_statements.get_all_metrics()
+        sorted_periods = sorted(combined_financial_statements.get_all_periods(), key=lambda x: x.split(':')[0])
 
         for metric_name in metric_names:
             metric_series = combined_financial_statements.get_metric(metric_name)
@@ -115,7 +116,8 @@ async def get_income_statements(ticker: str, form_type: Optional[str] = None):
             if metric_series is not None:
                 values = {}
 
-                for period, value in metric_series.items():
+                for period in sorted_periods:
+                    value = metric_series.get(period)
                     try:
                         if isinstance(value, pd.Series):
                             if not value.empty and pd.notna(value.iloc[0]):
@@ -135,7 +137,7 @@ async def get_income_statements(ticker: str, form_type: Optional[str] = None):
             ticker=combined_financial_statements.ticker,
             form_type=combined_financial_statements.form_type,
             metrics=metrics,
-            periods=combined_financial_statements.get_all_periods()
+            periods=sorted_periods
         )
     except Exception as e:
         print(f"--- Exception in /api/financial/income/{ticker} ---")

@@ -213,4 +213,11 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
     elif uow_instance.llm:
         combined_statements.df = format_dataframe_indexes(combined_statements.df, uow_instance)
 
+    if form_type == '10-Q':
+        combined_statements.create_implied_missing_quarters()
+
+    combined_statements.clean_dataframe()
+
+    combined_statements.df = combined_statements.df[sorted(combined_statements.df.columns, key=lambda x: x.split(':')[0])]
+
     return combined_statements

@@ -444,46 +444,56 @@ class CombinedFinancialStatements:
         return f"CombinedFinancialStatements for {self.ticker} ({self.form_type})\n{self.df}"
 
     def analyze_period_coverage(self) -> dict:
-        coverage = {}
+        if self.df.empty:
+            return {
+                'coverage_by_year': {},
+                'missing_periods': {},
+                'has_continuous_coverage': False,
+                'years_analyzed': []
+            }
+
+        periods = []
+        for col in self.df.columns:
+            start_str, end_str = col.split(':')
+            start_date = pd.to_datetime(start_str)
+            end_date = pd.to_datetime(end_str)
+            periods.append((start_date, end_date))
+
+        periods.sort(key=lambda x: x[0])
+
+        coverage_by_year = {}
+        years_analyzed = set()
+
+        for start_date, end_date in periods:
+            year = start_date.year
+            years_analyzed.add(year)
+            quarter = f"Q{(start_date.month - 1) // 3 + 1}"
+
+            if year not in coverage_by_year:
+                coverage_by_year[year] = set()
+            coverage_by_year[year].add(quarter)
+
+        has_continuous_coverage = True
+        for i in range(len(periods) - 1):
+            current_end = periods[i][1]
+            next_start = periods[i + 1][0]
+            if (next_start - current_end).days > 1:
+                has_continuous_coverage = False
+                break
+
         missing_periods = {}
-
-        for filing in self.source_filings:
-            if not filing.cover_page:
-                continue
-
-            fiscal_year = filing.cover_page.document_fiscal_year_focus
-            fiscal_period = filing.cover_page.document_fiscal_period_focus
-
-            if not fiscal_year or not fiscal_period:
-                continue
-
-            if fiscal_year not in coverage:
-                coverage[fiscal_year] = set()
-                missing_periods[fiscal_year] = {'Q1', 'Q2', 'Q3', 'Q4', 'FY'}
-
-            if fiscal_period in ['Q1', 'Q2', 'Q3', 'Q4']:
-                coverage[fiscal_year].add(fiscal_period)
-                missing_periods[fiscal_year].discard(fiscal_period)
-            elif fiscal_period == 'FY' or filing.form == '10-K':
-                coverage[fiscal_year].add('FY')
-                missing_periods[fiscal_year].discard('FY')
-
-        for year in list(missing_periods.keys()):
-            if not missing_periods[year]:
-                del missing_periods[year]
+        for year in years_analyzed:
+            quarters = coverage_by_year[year]
+            missing = {'Q1', 'Q2', 'Q3', 'Q4'} - quarters
+            if missing:
+                missing_periods[year] = sorted(list(missing))
 
         return {
-            'coverage_by_year': {year: sorted(list(periods)) for year, periods in coverage.items()},
-            'missing_periods': {year: sorted(list(periods)) for year, periods in missing_periods.items()},
-            'has_complete_quarterly_coverage': self._check_complete_quarterly_coverage(coverage),
-            'years_analyzed': sorted(coverage.keys())
+            'coverage_by_year': {year: sorted(list(periods)) for year, periods in coverage_by_year.items()},
+            'missing_periods': missing_periods,
+            'has_continuous_coverage': has_continuous_coverage,
+            'years_analyzed': sorted(list(years_analyzed))
         }
-
-    def _check_complete_quarterly_coverage(self, coverage: dict) -> dict:
-        complete_coverage = {}
-        for year, periods in coverage.items():
-            complete_coverage[year] = {'Q1', 'Q2', 'Q3', 'Q4'}.issubset(periods)
-        return complete_coverage
 
     def get_filings_for_period(self, fiscal_year: str, fiscal_period: str) -> list[Filing]:
         matching_filings = []
@@ -505,9 +515,11 @@ class CombinedFinancialStatements:
 
         return "Missing periods - " + "; ".join(summary_parts)
 
-    def create_implied_missing_quarters(self) -> None:
+    def create_implied_missing_quarters(self) -> pd.DataFrame:
+        """Modify the dataframe in place to create implied missing quarters"""
         if self.df.empty:
-            return
+            print('No data to create implied missing quarters')
+            return self.df
 
         annual_columns = []
         quarterly_columns = []
@@ -566,3 +578,50 @@ class CombinedFinancialStatements:
                     self.df[implied_col_name] = self.df[annual_col].fillna(0)
                     for q_col in quarters_in_annual:
                         self.df[implied_col_name] -= self.df[q_col].fillna(0)
+
+        self.df.drop(columns=annual_columns, inplace=True)
+        return self.df
+
+    def clean_dataframe(self):
+        self.df = self.df.applymap(self.convert_to_millions)
+        self.df = self.df.loc[[not self.is_sparse_row(row) for _, row in self.df.iterrows()]]
+        return self.df
+
+    def convert_to_millions(self, val):
+        try:
+            # Check if it's a numeric value
+            num = float(val)
+
+            # Only convert to millions if number is at least 100,000
+            if abs(num) >= 100_000:
+                return round(num / 1000000, 2)
+            else:
+                return num
+        except (ValueError, TypeError):
+            # Return original value if not numeric
+            return val
+
+    def is_sparse_row(self, row):
+        # Count zero values in the row
+        numeric_values = 0
+        zero_values = 0
+
+        for val in row:
+            try:
+                num = float(val)
+                numeric_values += 1
+                if num == 0:
+                    zero_values += 1
+            except (ValueError, TypeError):
+                # Skip non-numeric values
+                pass
+
+        # If no numeric values, don't delete
+        if numeric_values == 0:
+            return False
+
+        # Calculate percentage of zeros
+        zero_percentage = zero_values / numeric_values if numeric_values > 0 else 0
+
+        # Return True if more than 50% zeros
+        return zero_percentage > 0.5

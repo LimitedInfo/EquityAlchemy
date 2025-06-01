@@ -165,8 +165,6 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
             annual_filings_to_load[0].cover_page = cover_page
             annual_filings_to_load = company.select_filings_with_processing_pattern(annual_filings_to_load, '10-K')
 
-            annual_filings_to_load = [filing for filing in annual_filings_to_load if filing.data]
-
             for filing in annual_filings_to_load:
                 filing_data, cover_page = uow_instance.sec_filings.get_filing_data(
                     filing.cik,
@@ -182,6 +180,10 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
                     filing.primary_document
                 )
                 filing.filing_url = filing_url
+
+            annual_filings_to_load = [filing for filing in annual_filings_to_load if filing.data]
+
+
 
     else:
         raise ValueError(f"Invalid form type: {form_type}")

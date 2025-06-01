@@ -353,7 +353,11 @@ class IncomeStatement(AbstractFinancialStatement):
 
         annual_data['date_range'] = annual_data['start_date'].dt.strftime('%Y-%m-%d') + ':' + annual_data['end_date'].dt.strftime('%Y-%m-%d')
 
-        pivoted_df = annual_data.pivot_table(index='metric', columns='date_range', values='value')
+        original_metric_order = annual_data['metric'].unique()
+
+        pivoted_df = annual_data.pivot_table(index='metric', columns='date_range', values='value', sort=False)
+
+        pivoted_df = pivoted_df.reindex(original_metric_order)
 
         nan_threshold = len(pivoted_df) * 0.5
         columns_to_drop = [col for col in pivoted_df.columns if pivoted_df[col].isna().sum() > nan_threshold]
@@ -376,7 +380,11 @@ class IncomeStatement(AbstractFinancialStatement):
 
         quarterly_data['date_range'] = quarterly_data['start_date'].dt.strftime('%Y-%m-%d') + ':' + quarterly_data['end_date'].dt.strftime('%Y-%m-%d')
 
-        pivoted_df = quarterly_data.pivot_table(index='metric', columns='date_range', values='value')
+        original_metric_order = quarterly_data['metric'].unique()
+
+        pivoted_df = quarterly_data.pivot_table(index='metric', columns='date_range', values='value', sort=False)
+
+        pivoted_df = pivoted_df.reindex(original_metric_order)
 
         nan_threshold = len(pivoted_df) * 0.5
         columns_to_drop = [col for col in pivoted_df.columns if pivoted_df[col].isna().sum() > nan_threshold]

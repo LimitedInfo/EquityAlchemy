@@ -1,4 +1,6 @@
+import abc
 import requests
+
 from dotenv import load_dotenv
 import backend.domain.model as model
 from backend.adapters.filing_mapper import FilingMapper
@@ -7,14 +9,22 @@ import os
 import json
 import google.generativeai as genai
 import traceback
-load_dotenv()
+import pandas as pd
+from typing import Optional, Iterable
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from backend.adapters.orm import CombinedFinancialStatementsORM
+from typing import Protocol
 
+
+load_dotenv()
 
 class SECFilingRepository():
     def __init__(self):
         self.headers = {"User-Agent": os.getenv("USER_AGENT")}
 
     def get_cik_by_ticker(self, ticker):
+        # TODO: Cache this
         ticker_url = "https://www.sec.gov/files/company_tickers.json"
         data = self._make_request(ticker_url, self.headers)
 
@@ -29,16 +39,36 @@ class SECFilingRepository():
         data = self._make_request(submissions_url)
 
         filings = []
+
+        # Process recent filings
         filings_data = data.get("filings", {}).get("recent", {})
         forms = filings_data.get("form", [])
         dates = filings_data.get("filingDate", [])
         accessions = filings_data.get("accessionNumber", [])
         primary_docs = filings_data.get("primaryDocument", [])
+        isXBRL = filings_data.get("isXBRL", [])
 
-        for form, filing_date, accession_number, primary_document in zip(forms, dates, accessions, primary_docs):
-            if form in ['10-q', '10-k', '10-K', '10-Q', '10-Q/A', '10-K/A', '10-q/a', '10-k/a']:
+        for form, filing_date, accession_number, primary_document, is_xbrl in zip(forms, dates, accessions, primary_docs, isXBRL):
+            if form in ['10-q', '10-k', '10-K', '10-Q', '10-Q/A', '10-K/A', '10-q/a', '10-k/a'] and is_xbrl:
                 filing = model.Filing(cik, form, filing_date, accession_number, primary_document)
                 filings.append(filing)
+
+        # Process non-recent filings
+        older_files = data.get("filings", {}).get("files", [])
+        if older_files:
+            for file_info in older_files:
+                older_url = f"https://data.sec.gov/submissions/{file_info['name']}"
+                older_data = self._make_request(older_url)
+
+                older_forms = older_data.get("form", [])
+                older_dates = older_data.get("filingDate", [])
+                older_accessions = older_data.get("accessionNumber", [])
+                older_primary_docs = older_data.get("primaryDocument", [])
+                older_isXBRL = older_data.get("isXBRL", [])
+                for form, filing_date, accession_number, primary_document, is_xbrl in zip(older_forms, older_dates, older_accessions, older_primary_docs, older_isXBRL):
+                    if form in ['10-q', '10-k', '10-K', '10-Q', '10-Q/A', '10-K/A', '10-q/a', '10-k/a'] and is_xbrl:
+                        filing = model.Filing(cik, form, filing_date, accession_number, primary_document)
+                        filings.append(filing)
 
         return filings
 
@@ -192,8 +222,7 @@ class LLMRepository:
                 WeightedAverageNumberOfSharesOutstanding, and WeightedAverageNumberOfSharesDiluted.
                 You also seem to have trouble mapping 'WeightedAverageNumberOfDilutedSharesOutstanding'
                 make sure to only include ONE \"Of\" in the mapping, like WeightedAverageNumberOfDilutedSharesOutstanding.
-                {exclude_note}
-                """
+                {exclude_note}"""
 
                 print(f"Sending prompt to LLM with {len(list(df1_numeric.index))} rows from DF1 and {len(list(df2_numeric.index))} rows from DF2")
 
@@ -348,3 +377,89 @@ class LLMRepository:
                     return {name: name for name in index_names}
 
         return {name: name for name in index_names}
+
+class CombinedFinancialStatementsRepository(Protocol):
+    @abc.abstractmethod
+    def add(self, stmt: model.CombinedFinancialStatements) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def add_many(self, stmts: Iterable[model.CombinedFinancialStatements]) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get(self, ticker: str, form_type: str) -> Optional[model.CombinedFinancialStatements]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_by_ticker(self, ticker: str) -> list[model.CombinedFinancialStatements]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def delete(self, ticker: str, form_type: str) -> None:
+        raise NotImplementedError
+
+
+class PostgresCombinedFinancialStatementsRepository(CombinedFinancialStatementsRepository):
+    def __init__(self, session: Session):
+        self.session = session
+
+    def _serialize(self, stmt: model.CombinedFinancialStatements) -> dict:
+        json_str = stmt.df.to_json(orient="split", date_format="iso")
+        return {
+            "ticker": stmt.ticker,
+            "form_type": stmt.form_type,
+            "data": json.loads(json_str)
+        }
+
+    def _deserialize_to_domain(self, orm_obj: CombinedFinancialStatementsORM) -> model.CombinedFinancialStatements:
+        from io import StringIO
+        df = pd.read_json(StringIO(json.dumps(orm_obj.data)), orient="split")
+
+        stmt = model.CombinedFinancialStatements(
+            financial_statements=[],
+            source_filings=[],
+            ticker=orm_obj.ticker,
+            form_type=orm_obj.form_type
+        )
+        stmt.df = df
+        return stmt
+
+    def add(self, stmt: model.CombinedFinancialStatements) -> None:
+        data = self._serialize(stmt)
+        orm_obj = CombinedFinancialStatementsORM(**data)
+        self.session.add(orm_obj)
+
+    def add_many(self, stmts: Iterable[model.CombinedFinancialStatements]) -> None:
+        mappings = [self._serialize(stmt) for stmt in stmts]
+        self.session.bulk_insert_mappings(CombinedFinancialStatementsORM, mappings)
+
+    def get(self, ticker: str, form_type: str) -> Optional[model.CombinedFinancialStatements]:
+        stmt = select(CombinedFinancialStatementsORM).where(
+            CombinedFinancialStatementsORM.ticker == ticker,
+            CombinedFinancialStatementsORM.form_type == form_type
+        )
+        orm_obj = self.session.execute(stmt).scalar_one_or_none()
+
+        if orm_obj is None:
+            return None
+
+        return self._deserialize_to_domain(orm_obj)
+
+    def get_by_ticker(self, ticker: str) -> list[model.CombinedFinancialStatements]:
+        stmt = select(CombinedFinancialStatementsORM).where(
+            CombinedFinancialStatementsORM.ticker == ticker
+        )
+        orm_objs = self.session.execute(stmt).scalars().all()
+
+        return [self._deserialize_to_domain(orm_obj) for orm_obj in orm_objs]
+
+    def delete(self, ticker: str, form_type: str) -> None:
+        stmt = select(CombinedFinancialStatementsORM).where(
+            CombinedFinancialStatementsORM.ticker == ticker,
+            CombinedFinancialStatementsORM.form_type == form_type
+        )
+        orm_obj = self.session.execute(stmt).scalar_one_or_none()
+
+        if orm_obj:
+            self.session.delete(orm_obj)

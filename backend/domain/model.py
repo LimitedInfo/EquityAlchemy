@@ -107,9 +107,11 @@ class Company:
         self._filings = value
 
     def get_filings_by_type(self, filing_type: str | list[str]):
+        filings = self._filings
+
         if isinstance(filing_type, str):
-            return [filing for filing in self._filings if filing.form == filing_type]
-        return [filing for filing in self._filings if filing.form in filing_type]
+            return [filing for filing in filings if filing.form == filing_type]
+        return [filing for filing in filings if filing.form in filing_type]
 
 
     def filter_filings(self, form_type: str='10-K', statement_type: str='income_statement') -> list[Filing]:
@@ -591,8 +593,58 @@ class CombinedFinancialStatements:
         return self.df
 
     def clean_dataframe(self):
-        self.df = self.df.applymap(self.convert_to_millions)
+        self.df = self.df.map(self.convert_to_millions)
         self.df = self.df.loc[[not self.is_sparse_row(row) for _, row in self.df.iterrows()]]
+        self.df = self.df.loc[:, [not self.is_sparse_column(self.df[col]) for col in self.df.columns]]
+        self.df = self.keep_longest_continuous_period()
+        return self.df
+
+    def keep_longest_continuous_period(self) -> pd.DataFrame:
+        if self.df.empty or len(self.df.columns) == 0:
+            return self.df
+
+        date_columns = []
+        for col in self.df.columns:
+            try:
+                start_str, end_str = col.split(':')
+                start_date = pd.to_datetime(start_str)
+                end_date = pd.to_datetime(end_str)
+                date_columns.append((col, start_date, end_date))
+            except:
+                continue
+
+        if not date_columns:
+            return self.df
+
+        date_columns.sort(key=lambda x: x[1])
+
+        continuous_periods = []
+        current_period = [date_columns[0]]
+
+        for i in range(1, len(date_columns)):
+            prev_col, prev_start, prev_end = current_period[-1]
+            curr_col, curr_start, curr_end = date_columns[i]
+
+            days_gap = (curr_start - prev_end).days
+
+            if days_gap <= 1 or (prev_start.year + 1 == curr_start.year and
+                                 prev_start.month == 1 and prev_start.day == 1 and
+                                 prev_end.month == 12 and prev_end.day == 31 and
+                                 curr_start.month == 1 and curr_start.day == 1 and
+                                 curr_end.month == 12 and curr_end.day == 31):
+                current_period.append(date_columns[i])
+            else:
+                continuous_periods.append(current_period)
+                current_period = [date_columns[i]]
+
+        continuous_periods.append(current_period)
+
+        longest_period = max(continuous_periods, key=len)
+
+        columns_to_keep = [col_info[0] for col_info in longest_period]
+
+        self.df = self.df[columns_to_keep]
+
         return self.df
 
     def convert_to_millions(self, val):
@@ -610,26 +662,39 @@ class CombinedFinancialStatements:
             return val
 
     def is_sparse_row(self, row):
-        # Count zero values in the row
         numeric_values = 0
-        zero_values = 0
+        zero_or_nan_values = 0
 
         for val in row:
             try:
                 num = float(val)
                 numeric_values += 1
-                if num == 0:
-                    zero_values += 1
+                if num == 0 or pd.isna(num):
+                    zero_or_nan_values += 1
             except (ValueError, TypeError):
-                # Skip non-numeric values
                 pass
 
-        # If no numeric values, don't delete
         if numeric_values == 0:
             return False
 
-        # Calculate percentage of zeros
-        zero_percentage = zero_values / numeric_values if numeric_values > 0 else 0
+        sparse_percentage = zero_or_nan_values / numeric_values if numeric_values > 0 else 0
+        return sparse_percentage > 0.5
 
-        # Return True if more than 50% zeros
-        return zero_percentage > 0.5
+    def is_sparse_column(self, column):
+        numeric_values = 0
+        zero_or_nan_values = 0
+
+        for val in column:
+            try:
+                num = float(val)
+                numeric_values += 1
+                if num == 0 or pd.isna(num):
+                    zero_or_nan_values += 1
+            except (ValueError, TypeError):
+                pass
+
+        if numeric_values == 0:
+            return False
+
+        sparse_percentage = zero_or_nan_values / numeric_values if numeric_values > 0 else 0
+        return sparse_percentage > 0.5

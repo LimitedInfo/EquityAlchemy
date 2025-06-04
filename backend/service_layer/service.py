@@ -66,6 +66,8 @@ def join_financial_statements_with_mapping(financial_statements: list[pd.DataFra
 
     result_df = financial_statements[0].copy()
 
+    mapping_cache = {}
+
     for i, statement in enumerate(financial_statements[1:], 1):
         if not isinstance(statement, pd.DataFrame):
             raise TypeError("Expected a DataFrame object at index {0}, but got {1}".format(i, type(statement)))
@@ -76,7 +78,16 @@ def join_financial_statements_with_mapping(financial_statements: list[pd.DataFra
             continue
 
         if uow_instance.llm:
-            index_mapping = uow_instance.llm.map_dataframes(financial_statements[0], current_df)
+            base_indices = tuple(sorted(financial_statements[0].index.tolist()))
+            current_indices = tuple(sorted(current_df.index.tolist()))
+            cache_key = (base_indices, current_indices)
+
+            if cache_key in mapping_cache:
+                print(f"Reusing cached mapping for dataframes with {len(base_indices)} and {len(current_indices)} indices")
+                index_mapping = mapping_cache[cache_key]
+            else:
+                index_mapping = uow_instance.llm.map_dataframes(financial_statements[0], current_df)
+                mapping_cache[cache_key] = index_mapping
 
             mapped_df = current_df.copy()
             new_index = []
@@ -104,7 +115,15 @@ def join_financial_statements_with_mapping(financial_statements: list[pd.DataFra
     return result_df
 
 
-def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUnitOfWork, form_type: str = None) -> model.CombinedFinancialStatements:
+def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUnitOfWork, form_type: str = None, use_database: bool = True) -> model.CombinedFinancialStatements:
+    if use_database:
+        with uow_instance as uow:
+            saved_statements = uow.stmts.get(ticker, form_type)
+
+        if saved_statements:
+            return saved_statements
+        print('no statements found in database')
+
     company = get_company_by_ticker(ticker, uow_instance)
 
     if form_type == '10-Q':
@@ -146,7 +165,7 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
             filing.data = filing_data
             filing.cover_page = cover_page
         # remove filings with no data
-        annual_filings_to_load = [filing for filing in annual_filings_to_load if filing.data]
+        annual_filings_to_load = [filing for filing in annual_filings_to_load if filing.data and len(filing.data) > 3]
 
         filtered_annual_filings = []
         for filing in annual_filings_to_load:
@@ -181,7 +200,7 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
                 )
                 filing.filing_url = filing_url
 
-            annual_filings_to_load = [filing for filing in annual_filings_to_load if filing.data]
+            annual_filings_to_load = [filing for filing in annual_filings_to_load if filing.data and len(filing.data) > 3]
 
 
 
@@ -197,7 +216,10 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
         filings_to_load = annual_filings_to_load
 
     for filing in filings_to_load:
-        print('loading filings for {0} {1}'.format(filing.cover_page.document_period_end_date, filing.form))
+        try:
+            print('loading filings for {0} {1}'.format(filing.cover_page.document_period_end_date, filing.form))
+        except:
+            print('no cover page for {0} {1}'.format(filing.accession_number, filing.form))
 
 
     if not filings_to_load:
@@ -221,5 +243,10 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
     combined_statements.clean_dataframe()
 
     combined_statements.df = combined_statements.df[sorted(combined_statements.df.columns, key=lambda x: x.split(':')[0])]
+
+    if use_database:
+        with uow_instance as uow:
+            uow.stmts.add(combined_statements)
+            uow.commit()
 
     return combined_statements

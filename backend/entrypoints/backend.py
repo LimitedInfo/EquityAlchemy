@@ -103,7 +103,7 @@ async def logout(response: Response, session_id: Optional[str] = Cookie(None)):
 @app.get("/api/financial/income/{ticker}")
 async def get_income_statements(ticker: str, form_type: Optional[str] = None):
     try:
-        with uow.UnitOfWork() as uow_instance:
+        with uow.SqlAlchemyUnitOfWork() as uow_instance:
             combined_financial_statements = service.get_consolidated_income_statements(ticker, uow_instance, form_type=form_type)
 
         metrics = []

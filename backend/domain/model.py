@@ -2,7 +2,14 @@ from dataclasses import dataclass
 import pandas as pd
 from abc import ABC, abstractmethod
 from typing import List, Optional
+import json
+import os
 
+def load_xbrl_mappings():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    mapping_file = os.path.join(current_dir, 'xbrl_mappings.json')
+    with open(mapping_file, 'r') as f:
+        return json.load(f)
 
 
 @dataclass(frozen=True)
@@ -42,17 +49,19 @@ class CoverPage:
     document_fiscal_year_focus: Optional[str] = None
     document_fiscal_period_focus: Optional[str] = None
     current_fiscal_year_end_date: Optional[str] = None
+    entity_common_stock_shares_outstanding: Optional[int] = None
 
 
 class Filing:
     def __init__(self, cik: str, form: str, filing_date: str, accession_number: str,
-                 primary_document: str, data: dict = None, filing_url: str = None,
+                 primary_document: str, is_xbrl: bool, data: dict = None, filing_url: str = None,
                  cover_page: CoverPage = None) -> None:
         self.cik = cik
         self.form = form
         self.filing_date = filing_date
         self.accession_number = accession_number
         self.primary_document = primary_document
+        self.is_xbrl = is_xbrl
         self._data = data
         self._filing_url = filing_url
         self._income_statement = None
@@ -65,6 +74,8 @@ class Filing:
     @data.setter
     def data(self, value: dict):
         self._data = value
+        if 'StatementsOfIncome' not in self._data and 'StatementsOfComprehensiveIncome' in self._data:
+            self._data['StatementsOfIncome'] = self._data['StatementsOfComprehensiveIncome']
         self._income_statement = None
 
     @property
@@ -86,9 +97,115 @@ class Filing:
     @property
     def income_statement(self):
         if self._income_statement is None and self._data is not None:
+            combined_data = {}
+            xbrl_mappings = load_xbrl_mappings()
+            standardized_tags = set()  # Track which tags have been standardized
+
+            # Apply XBRL mappings first to identify standardized metrics
+            standardized_metrics = {}
+
+            # Process income statement metrics
             if 'StatementsOfIncome' in self._data:
-                self._income_statement = IncomeStatement(self._data['StatementsOfIncome'], self.form, self._data.get('cov'))
+                income_metrics = ['Revenue', 'COGS']
+                standardized_income = self._apply_xbrl_mappings(
+                    self._data['StatementsOfIncome'],
+                    xbrl_mappings,
+                    income_metrics
+                )
+                standardized_metrics.update(standardized_income)
+
+                # Track which original tags were standardized
+                for standard_name in standardized_income:
+                    if standard_name in xbrl_mappings:
+                        mapping = xbrl_mappings[standard_name]
+                        for tag in mapping.get('primary', []) + mapping.get('secondary', []):
+                            standardized_tags.add(tag.split(':')[-1])
+
+            # Process cash flow metrics
+            if 'StatementsOfCashFlows' in self._data:
+                cash_flow_metrics = ['OperatingCashFlow', 'CapitalExpenditures']
+                standardized_cash_flow = self._apply_xbrl_mappings(
+                    self._data['StatementsOfCashFlows'],
+                    xbrl_mappings,
+                    cash_flow_metrics
+                )
+                standardized_metrics.update(standardized_cash_flow)
+
+                # Track which original tags were standardized
+                for standard_name in standardized_cash_flow:
+                    if standard_name in xbrl_mappings:
+                        mapping = xbrl_mappings[standard_name]
+                        for tag in mapping.get('primary', []) + mapping.get('secondary', []):
+                            standardized_tags.add(tag.split(':')[-1])
+
+            # First add Revenue and COGS if they exist (to ensure they're #1 and #2)
+            if 'Revenue' in standardized_metrics:
+                combined_data['Revenue'] = standardized_metrics['Revenue']
+            if 'COGS' in standardized_metrics:
+                combined_data['COGS'] = standardized_metrics['COGS']
+
+            # Now add all non-standardized items
+            if 'StatementsOfIncome' in self._data:
+                for metric_name, values in self._data['StatementsOfIncome'].items():
+                    if metric_name not in standardized_tags:
+                        combined_data[metric_name] = values if isinstance(values, list) else [values]
+
+            # Add the remaining standardized metrics (excluding Revenue and COGS which are already added)
+            for metric_name, values in standardized_metrics.items():
+                if metric_name not in ['Revenue', 'COGS']:
+                    combined_data[metric_name] = values
+
+            self._income_statement = IncomeStatement(combined_data, self.form, self._data.get('cov'))
         return self._income_statement
+
+    def _apply_xbrl_mappings(self, statement_data: dict, xbrl_mappings: dict, metrics_to_process: list = None) -> dict:
+        """Apply XBRL mappings to standardize metric names."""
+        standardized_data = {}
+
+        if metrics_to_process is None:
+            metrics_to_process = list(xbrl_mappings.keys())
+
+        print(f"\n  [MAP] Starting XBRL mapping for statement with keys: {list(statement_data.keys())}")
+
+        for standard_name in metrics_to_process:
+            if standard_name not in xbrl_mappings:
+                continue
+
+            mapping = xbrl_mappings[standard_name]
+            found_values = []
+
+            print(f"    [MAP] Processing '{standard_name}'...")
+
+            # Collect all matching values from primary tags
+            primary_tags = mapping.get('primary', [])
+            for tag in primary_tags:
+                tag_name = tag.split(':')[-1]
+                if tag_name in statement_data:
+                    values = statement_data[tag_name]
+                    print(f"      [MAP] Found PRIMARY tag '{tag_name}' for '{standard_name}'")
+                    if not isinstance(values, list):
+                        values = [values]
+                    found_values.extend(values)
+
+            # If no primary tags found, collect from secondary tags
+            if not found_values:
+                secondary_tags = mapping.get('secondary', [])
+                print(f"      [MAP] No primary tags found for '{standard_name}'. Checking {len(secondary_tags)} secondary tags...")
+                for tag in secondary_tags:
+                    tag_name = tag.split(':')[-1]
+                    if tag_name in statement_data:
+                        values = statement_data[tag_name]
+                        print(f"      [MAP] Found SECONDARY tag '{tag_name}' for '{standard_name}'")
+                        if not isinstance(values, list):
+                            values = [values]
+                        found_values.extend(values)
+
+            if found_values:
+                standardized_data[standard_name] = found_values
+            else:
+                print(f"      [MAP] No tags found for '{standard_name}' in this statement.")
+
+        return standardized_data
 
 
 class Company:
@@ -97,10 +214,30 @@ class Company:
         self.ticker = ticker
         self.cik = cik
         self._filings = filings or []
+        self._shares_outstanding = None
 
     @property
     def filings(self):
         return self._filings
+
+    @property
+    def shares_outstanding(self) -> Optional[int]:
+        if self._shares_outstanding is not None:
+            return self._shares_outstanding
+
+        if not self._filings:
+            return None
+
+        for filing in self._filings:
+            if (filing.cover_page and
+                filing.cover_page.entity_common_stock_shares_outstanding is not None):
+                return filing.cover_page.entity_common_stock_shares_outstanding
+
+        return None
+
+    @shares_outstanding.setter
+    def shares_outstanding(self, value: Optional[int]):
+        self._shares_outstanding = value
 
     @filings.setter
     def filings(self, value: list[Filing]):
@@ -331,11 +468,16 @@ class IncomeStatement(AbstractFinancialStatement):
     @property
     def table(self) -> pd.DataFrame:
         if self.form == '10-K':
-            return self.get_annual_data()
+            pivoted_df = self.get_annual_data()
         elif self.form == '10-Q':
-            return self.get_quarterly_data()
+            pivoted_df =  self.get_quarterly_data()
         else:
             return pd.DataFrame()
+
+        if 'OperatingCashFlow' in pivoted_df.index and 'CapitalExpenditures' in pivoted_df.index:
+            pivoted_df.loc['FreeCashFlow'] = pivoted_df.loc['OperatingCashFlow'] - abs(pivoted_df.loc['CapitalExpenditures'])
+
+        return pivoted_df
 
 
     def get_annual_data(self, include_segment_data: bool = False) -> pd.DataFrame:
@@ -357,9 +499,20 @@ class IncomeStatement(AbstractFinancialStatement):
 
         original_metric_order = annual_data['metric'].unique()
 
+        # Ensure Revenue and COGS are first if they exist
+        priority_metrics = []
+        if 'Revenue' in original_metric_order:
+            priority_metrics.append('Revenue')
+        if 'COGS' in original_metric_order:
+            priority_metrics.append('COGS')
+
+        # Add remaining metrics
+        other_metrics = [m for m in original_metric_order if m not in priority_metrics]
+        final_metric_order = priority_metrics + other_metrics
+
         pivoted_df = annual_data.pivot_table(index='metric', columns='date_range', values='value', sort=False)
 
-        pivoted_df = pivoted_df.reindex(original_metric_order)
+        pivoted_df = pivoted_df.reindex(final_metric_order)
 
         nan_threshold = len(pivoted_df) * 0.5
         columns_to_drop = [col for col in pivoted_df.columns if pivoted_df[col].isna().sum() > nan_threshold]
@@ -384,9 +537,20 @@ class IncomeStatement(AbstractFinancialStatement):
 
         original_metric_order = quarterly_data['metric'].unique()
 
+        # Ensure Revenue and COGS are first if they exist
+        priority_metrics = []
+        if 'Revenue' in original_metric_order:
+            priority_metrics.append('Revenue')
+        if 'COGS' in original_metric_order:
+            priority_metrics.append('COGS')
+
+        # Add remaining metrics
+        other_metrics = [m for m in original_metric_order if m not in priority_metrics]
+        final_metric_order = priority_metrics + other_metrics
+
         pivoted_df = quarterly_data.pivot_table(index='metric', columns='date_range', values='value', sort=False)
 
-        pivoted_df = pivoted_df.reindex(original_metric_order)
+        pivoted_df = pivoted_df.reindex(final_metric_order)
 
         nan_threshold = len(pivoted_df) * 0.5
         columns_to_drop = [col for col in pivoted_df.columns if pivoted_df[col].isna().sum() > nan_threshold]

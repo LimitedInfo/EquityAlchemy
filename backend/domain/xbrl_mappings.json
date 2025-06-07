@@ -1,0 +1,106 @@
+{
+    "OperatingCashFlow": {
+      "primary": [
+        "us-gaap:NetCashProvidedByUsedInOperatingActivities"
+      ],
+      "secondary": [
+        "us-gaap:NetCashProvidedByOperatingActivities",
+        "us-gaap:CashFlowsFromOperatingActivities",
+        "us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+        "us-gaap:NetCashProvidedByUsedInOperatingActivitiesDiscontinuedOperations",
+        "us-gaap:CashFlowsFromOperatingActivitiesIndirectMethod",
+        "us-gaap:CashFlowsFromOperatingActivitiesDirectMethod"
+      ]
+    },
+    "CapitalExpenditures": {
+      "primary": [
+        "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment"
+      ],
+      "secondary": [
+        "us-gaap:CapitalExpenditures",
+        "us-gaap:PaymentsForCapitalExpenditures",
+        "us-gaap:PaymentsToAcquirePropertyPlantAndEquipmentContinuingOperations",
+        "us-gaap:PaymentsToAcquirePropertyPlantAndEquipmentDiscontinuedOperations",
+        "us-gaap:CapitalExpendituresIncurredButNotYetPaid",
+        "us-gaap:PropertyPlantAndEquipmentAdditions",
+        "us-gaap:PurchaseOfPropertyPlantAndEquipmentAbstract"
+      ]
+    },
+    "Revenue": {
+        "primary": [
+          "us-gaap:Revenues",
+          "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+          "us-gaap:RevenueFromContractWithCustomerIncludingAssessedTax",
+          "us-gaap:TotalRevenuesAndOtherIncome",
+          "us-gaap:Revenue",
+          "us-gaap:SalesRevenueNet"
+        ],
+        "secondary": [
+          "us-gaap:SalesRevenueGoodsNet",
+          "us-gaap:SalesRevenueServicesNet",
+          "us-gaap:TotalRevenueNet",
+          "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+          "us-gaap:RevenueFromContractWithCustomerIncludingAssessedTax",
+          "us-gaap:TotalRevenuesAndOtherIncome",
+          "us-gaap:TotalOperatingRevenue",
+          "us-gaap:InterestAndDividendIncomeOperating",
+          "us-gaap:NoninterestIncome",
+          "us-gaap:PremiumsEarnedNet",
+          "us-gaap:InsuranceRevenue",
+          "us-gaap:OilAndGasRevenue",
+          "us-gaap:OilAndGasSalesRevenue",
+          "us-gaap:HealthcareRevenue",
+          "us-gaap:ProductRevenue",
+          "us-gaap:PharmaceuticalProductRevenue",
+          "us-gaap:TelecommunicationRevenue",
+          "us-gaap:NetworkServicesRevenue",
+          "us-gaap:FoodAndBeverageSalesRevenue",
+          "us-gaap:FoodAndBeverageRevenue",
+          "us-gaap:RestaurantRevenue",
+          "us-gaap:RentalRevenue",
+          "us-gaap:RealEstateRevenue",
+          "us-gaap:AdvertisingRevenue",
+          "us-gaap:SubscriptionRevenue",
+          "us-gaap:PassengerRevenue",
+          "us-gaap:CargoRevenue",
+          "us-gaap:UtilityRevenue"
+        ]
+      },
+
+      "COGS": {
+        "primary": [
+          "us-gaap:CostOfGoodsSold",
+          "us-gaap:CostOfRevenue"
+        ],
+        "secondary": [
+          "us-gaap:CostOfServices",
+          "us-gaap:CostOfGoodsAndServicesSold",
+          "us-gaap:CostOfSales",
+          "us-gaap:CostOfGoodsSoldExcludingDepreciation",
+          "us-gaap:CostOfSalesServices",
+          "us-gaap:CostOfGoodsSoldManufactured",
+          "us-gaap:InterestExpense",
+          "us-gaap:InsurancePolicyBenefitsAndClaims",
+          "us-gaap:InsurancePolicyAcquisitionCosts",
+          "us-gaap:ClaimsAndBenefitsExpense",
+          "us-gaap:OilAndGasProductionCosts",
+          "us-gaap:LeaseOperatingExpenses",
+          "us-gaap:CostOfProductSold",
+          "us-gaap:CostOfSalesHealthcare",
+          "us-gaap:CostOfPharmaceuticalProductSales",
+          "us-gaap:CostOfTelecommunicationServices",
+          "us-gaap:CostOfFoodAndBeveragesSold",
+          "us-gaap:CostOfFoodAndBeverageCostOfSales",
+          "us-gaap:CostOfFoodAndBeverageSales",
+          "us-gaap:CostOfRestaurantSales",
+          "us-gaap:RealEstateOperatingExpenses",
+          "us-gaap:CostOfAdvertisingRevenue",
+          "us-gaap:AircraftFuel",
+          "us-gaap:AircraftMaintenanceExpense",
+          "us-gaap:UtilityOperatingExpenses",
+          "us-gaap:CostDirectMaterial",
+          "us-gaap:CostDirectLabor",
+          "us-gaap:CostOfGoodsSoldDirectLabor"
+        ]
+      }
+    }

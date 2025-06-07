@@ -46,7 +46,7 @@ function FinancialData({ isAuthenticated }) {
           <label>Ticker Symbol:</label>
           <input
             type="text"
-            value={ticker}
+            value={ticker.toUpperCase()}
             onChange={(e) => setTicker(e.target.value)}
             required
           />

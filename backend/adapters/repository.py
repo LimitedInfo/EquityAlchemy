@@ -50,7 +50,7 @@ class SECFilingRepository():
 
         for form, filing_date, accession_number, primary_document, is_xbrl in zip(forms, dates, accessions, primary_docs, isXBRL):
             if form in ['10-q', '10-k', '10-K', '10-Q', '10-Q/A', '10-K/A', '10-q/a', '10-k/a'] and is_xbrl:
-                filing = model.Filing(cik, form, filing_date, accession_number, primary_document)
+                filing = model.Filing(cik, form, filing_date, accession_number, primary_document, is_xbrl)
                 filings.append(filing)
 
         # Process non-recent filings
@@ -67,8 +67,13 @@ class SECFilingRepository():
                 older_isXBRL = older_data.get("isXBRL", [])
                 for form, filing_date, accession_number, primary_document, is_xbrl in zip(older_forms, older_dates, older_accessions, older_primary_docs, older_isXBRL):
                     if form in ['10-q', '10-k', '10-K', '10-Q', '10-Q/A', '10-K/A', '10-q/a', '10-k/a'] and is_xbrl:
-                        filing = model.Filing(cik, form, filing_date, accession_number, primary_document)
+                        filing = model.Filing(cik, form, filing_date, accession_number, primary_document, is_xbrl)
                         filings.append(filing)
+
+
+        print("\nDEBUG: XBRL Verification")
+        for filing in filings:
+            print(f"Filing: {filing.form} - {filing.filing_date} - XBRL: {filing.is_xbrl}")
 
         return filings
 

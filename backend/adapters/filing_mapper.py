@@ -40,13 +40,13 @@ class FilingMapper:
             entity_small_business=cover_page_data.get('EntitySmallBusiness') == 'true',
             entity_emerging_growth_company=cover_page_data.get('EntityEmergingGrowthCompany') == 'true',
             entity_shell_company=cover_page_data.get('EntityShellCompany') == 'true',
-            entity_common_stock_shares_outstanding=shares_outstanding,
             entity_registrant_name=cover_page_data.get('EntityRegistrantName'),
             entity_central_index_key=cover_page_data.get('EntityCentralIndexKey'),
             amendment_flag=cover_page_data.get('AmendmentFlag') == 'true',
             document_fiscal_year_focus=cover_page_data.get('DocumentFiscalYearFocus'),
             document_fiscal_period_focus=cover_page_data.get('DocumentFiscalPeriodFocus'),
-            current_fiscal_year_end_date=cover_page_data.get('CurrentFiscalYearEndDate')
+            current_fiscal_year_end_date=cover_page_data.get('CurrentFiscalYearEndDate'),
+            entity_common_stock_shares_outstanding=int(cover_page_data.get('EntityCommonStockSharesOutstanding', {}).get('value', 0)) if cover_page_data.get('EntityCommonStockSharesOutstanding') else None
         )
 
     @staticmethod

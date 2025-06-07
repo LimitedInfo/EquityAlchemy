@@ -4,11 +4,12 @@ import pandas as pd
 
 
 def  get_company_by_ticker(ticker: str, uow_instance: uow.AbstractUnitOfWork) -> model.Company:
-    cik = uow_instance.sec_filings.get_cik_by_ticker(ticker)
-    if not cik:
-        raise ValueError(f"No CIK found for ticker: {ticker}")
+    with uow_instance as uow:
+        cik = uow.sec_filings.get_cik_by_ticker(ticker)
+        if not cik:
+            raise ValueError(f"No CIK found for ticker: {ticker}")
 
-    raw_filings = uow_instance.sec_filings.get_filings(cik)
+        raw_filings = uow.sec_filings.get_filings(cik)
 
     return model.Company(name=ticker, ticker=ticker, cik=cik, filings=raw_filings)
 
@@ -190,6 +191,8 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
                     filing.accession_number,
                     filing.primary_document
                 )
+                if not filing_data:
+                    raise ValueError(f"No data found for filing {filing.accession_number} - {filing.primary_document}")
                 filing.data = filing_data
                 filing.cover_page = cover_page
 

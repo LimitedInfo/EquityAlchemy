@@ -18,6 +18,7 @@
       ],
       "secondary": [
         "us-gaap:CapitalExpenditures",
+        "us-gaap:PaymentsToAcquireProductiveAssets",
         "us-gaap:PaymentsForCapitalExpenditures",
         "us-gaap:PaymentsToAcquirePropertyPlantAndEquipmentContinuingOperations",
         "us-gaap:PaymentsToAcquirePropertyPlantAndEquipmentDiscontinuedOperations",
@@ -63,7 +64,10 @@
           "us-gaap:SubscriptionRevenue",
           "us-gaap:PassengerRevenue",
           "us-gaap:CargoRevenue",
-          "us-gaap:UtilityRevenue"
+          "us-gaap:UtilityRevenue",
+          "us-gaap:ElectricalDistributionRevenue",
+          "us-gaap:ElectricalGenerationRevenue",
+          "us-gaap:ElectricUtilityRevenue"
         ]
       },
 

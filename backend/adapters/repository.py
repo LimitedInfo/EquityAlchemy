@@ -70,11 +70,6 @@ class SECFilingRepository():
                         filing = model.Filing(cik, form, filing_date, accession_number, primary_document, is_xbrl)
                         filings.append(filing)
 
-
-        print("\nDEBUG: XBRL Verification")
-        for filing in filings:
-            print(f"Filing: {filing.form} - {filing.filing_date} - XBRL: {filing.is_xbrl}")
-
         return filings
 
     def get_cover_page_properties(self, filing):

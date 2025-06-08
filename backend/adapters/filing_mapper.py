@@ -17,6 +17,9 @@ class FilingMapper:
         if shares_data and isinstance(shares_data, dict):
             shares_outstanding = int(shares_data.get('value', 0))
 
+        if shares_data and isinstance(shares_data, list):
+            shares_outstanding = sum(int(item.get('value', 0)) for item in shares_data)
+
         return CoverPage(
             document_type=cover_page_data.get('DocumentType'),
             document_quarterly_report=cover_page_data.get('DocumentQuarterlyReport') == 'true',
@@ -46,7 +49,7 @@ class FilingMapper:
             document_fiscal_year_focus=cover_page_data.get('DocumentFiscalYearFocus'),
             document_fiscal_period_focus=cover_page_data.get('DocumentFiscalPeriodFocus'),
             current_fiscal_year_end_date=cover_page_data.get('CurrentFiscalYearEndDate'),
-            entity_common_stock_shares_outstanding=int(cover_page_data.get('EntityCommonStockSharesOutstanding', {}).get('value', 0)) if cover_page_data.get('EntityCommonStockSharesOutstanding') else None
+            entity_common_stock_shares_outstanding=shares_outstanding
         )
 
     @staticmethod

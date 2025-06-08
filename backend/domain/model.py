@@ -596,6 +596,9 @@ class CombinedFinancialStatements:
                         if idx in current_df.index:
                             result_df.loc[idx, col] = current_df.loc[idx, col]
 
+        for col in result_df.columns:
+            result_df[col] = result_df[col].apply(lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and abs(x) >= 10000 else x)
+
         return result_df
 
     def get_metric(self, metric_name):

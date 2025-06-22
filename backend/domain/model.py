@@ -106,7 +106,7 @@ class Filing:
 
             # Process income statement metrics
             if 'StatementsOfIncome' in self._data:
-                income_metrics = ['Revenue', 'COGS']
+                income_metrics = ['Revenue', 'COGS', 'IncomeTaxExpenseBenefit', 'OperatingIncomeLoss', 'NetIncomeLossAttributableToNoncontrollingInterest', 'NetIncomeLossAttributableToNonredeemableNoncontrollingInterest']
                 standardized_income = self._apply_xbrl_mappings(
                     self._data['StatementsOfIncome'],
                     xbrl_mappings,
@@ -165,7 +165,7 @@ class Filing:
         if metrics_to_process is None:
             metrics_to_process = list(xbrl_mappings.keys())
 
-        print(f"\n  [MAP] Starting XBRL mapping for statement with keys: {list(statement_data.keys())}")
+        # print(f"\n  [MAP] Starting XBRL mapping for statement with keys: {list(statement_data.keys())}")
 
         for standard_name in metrics_to_process:
             if standard_name not in xbrl_mappings:
@@ -174,7 +174,7 @@ class Filing:
             mapping = xbrl_mappings[standard_name]
             found_values = []
 
-            print(f"    [MAP] Processing '{standard_name}'...")
+            # print(f"    [MAP] Processing '{standard_name}'...")
 
             # Collect all matching values from primary tags
             primary_tags = mapping.get('primary', [])
@@ -182,7 +182,7 @@ class Filing:
                 tag_name = tag.split(':')[-1]
                 if tag_name in statement_data:
                     values = statement_data[tag_name]
-                    print(f"      [MAP] Found PRIMARY tag '{tag_name}' for '{standard_name}'")
+                    # print(f"      [MAP] Found PRIMARY tag '{tag_name}' for '{standard_name}'")
                     if not isinstance(values, list):
                         values = [values]
                     found_values.extend(values)
@@ -190,12 +190,12 @@ class Filing:
             # If no primary tags found, collect from secondary tags
             if not found_values:
                 secondary_tags = mapping.get('secondary', [])
-                print(f"      [MAP] No primary tags found for '{standard_name}'. Checking {len(secondary_tags)} secondary tags...")
+                # print(f"      [MAP] No primary tags found for '{standard_name}'. Checking {len(secondary_tags)} secondary tags...")
                 for tag in secondary_tags:
                     tag_name = tag.split(':')[-1]
                     if tag_name in statement_data:
                         values = statement_data[tag_name]
-                        print(f"      [MAP] Found SECONDARY tag '{tag_name}' for '{standard_name}'")
+                        # print(f"      [MAP] Found SECONDARY tag '{tag_name}' for '{standard_name}'")
                         if not isinstance(values, list):
                             values = [values]
                         found_values.extend(values)
@@ -597,7 +597,7 @@ class CombinedFinancialStatements:
                             result_df.loc[idx, col] = current_df.loc[idx, col]
 
         for col in result_df.columns:
-            result_df[col] = result_df[col].apply(lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and abs(x) >= 10000 else x)
+            result_df[col] = result_df[col].apply(lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and abs(x) >= 1000 else x)
 
         return result_df
 
@@ -820,8 +820,8 @@ class CombinedFinancialStatements:
             num = float(val)
 
             # Only convert to millions if number is at least 100,000
-            if abs(num) >= 100_000:
-                return round(num / 1000000, 2)
+            if abs(num) >= 10_000:
+                return round(num / 1_000_000, 2)
             else:
                 return num
         except (ValueError, TypeError):

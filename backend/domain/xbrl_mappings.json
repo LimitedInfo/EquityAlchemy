@@ -1,110 +1,826 @@
 {
-    "OperatingCashFlow": {
-      "primary": [
-        "us-gaap:NetCashProvidedByUsedInOperatingActivities"
-      ],
-      "secondary": [
-        "us-gaap:NetCashProvidedByOperatingActivities",
-        "us-gaap:CashFlowsFromOperatingActivities",
-        "us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
-        "us-gaap:NetCashProvidedByUsedInOperatingActivitiesDiscontinuedOperations",
-        "us-gaap:CashFlowsFromOperatingActivitiesIndirectMethod",
-        "us-gaap:CashFlowsFromOperatingActivitiesDirectMethod"
-      ]
-    },
-    "CapitalExpenditures": {
-      "primary": [
-        "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment"
-      ],
-      "secondary": [
-        "us-gaap:CapitalExpenditures",
-        "us-gaap:PaymentsToAcquireProductiveAssets",
-        "us-gaap:PaymentsForCapitalExpenditures",
-        "us-gaap:PaymentsToAcquirePropertyPlantAndEquipmentContinuingOperations",
-        "us-gaap:PaymentsToAcquirePropertyPlantAndEquipmentDiscontinuedOperations",
-        "us-gaap:CapitalExpendituresIncurredButNotYetPaid",
-        "us-gaap:PropertyPlantAndEquipmentAdditions",
-        "us-gaap:PurchaseOfPropertyPlantAndEquipmentAbstract"
-      ]
-    },
-    "Revenue": {
-        "primary": [
-          "us-gaap:Revenues",
-          "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
-          "us-gaap:RevenueFromContractWithCustomerIncludingAssessedTax",
-          "us-gaap:TotalRevenuesAndOtherIncome",
-          "us-gaap:Revenue",
-          "us-gaap:SalesRevenueNet"
-        ],
-        "secondary": [
-          "us-gaap:SalesRevenueGoodsNet",
-          "us-gaap:SalesRevenueServicesNet",
-          "us-gaap:TotalRevenueNet",
-          "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
-          "us-gaap:RevenueFromContractWithCustomerIncludingAssessedTax",
-          "us-gaap:TotalRevenuesAndOtherIncome",
-          "us-gaap:TotalOperatingRevenue",
-          "us-gaap:InterestAndDividendIncomeOperating",
-          "us-gaap:NoninterestIncome",
-          "us-gaap:PremiumsEarnedNet",
-          "us-gaap:InsuranceRevenue",
-          "us-gaap:OilAndGasRevenue",
-          "us-gaap:OilAndGasSalesRevenue",
-          "us-gaap:HealthcareRevenue",
-          "us-gaap:ProductRevenue",
-          "us-gaap:PharmaceuticalProductRevenue",
-          "us-gaap:TelecommunicationRevenue",
-          "us-gaap:NetworkServicesRevenue",
-          "us-gaap:FoodAndBeverageSalesRevenue",
-          "us-gaap:FoodAndBeverageRevenue",
-          "us-gaap:RestaurantRevenue",
-          "us-gaap:RentalRevenue",
-          "us-gaap:RealEstateRevenue",
-          "us-gaap:AdvertisingRevenue",
-          "us-gaap:SubscriptionRevenue",
-          "us-gaap:PassengerRevenue",
-          "us-gaap:CargoRevenue",
-          "us-gaap:UtilityRevenue",
-          "us-gaap:ElectricalDistributionRevenue",
-          "us-gaap:ElectricalGenerationRevenue",
-          "us-gaap:ElectricUtilityRevenue"
-        ]
-      },
+  "OperatingCashFlow": {
+    "primary": [
+      "us-gaap:NetCashProvidedByUsedInOperatingActivities"
+    ],
+    "secondary": [
+      "us-gaap:NetCashProvidedByOperatingActivities",
+      "us-gaap:CashFlowsFromOperatingActivities",
+      "us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+      "us-gaap:NetCashProvidedByUsedInOperatingActivitiesDiscontinuedOperations",
+      "us-gaap:CashFlowsFromOperatingActivitiesIndirectMethod",
+      "us-gaap:CashFlowsFromOperatingActivitiesDirectMethod"
+    ]
+  },
+  "CapitalExpenditures": {
+    "primary": [
+      "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment"
+    ],
+    "secondary": [
+      "us-gaap:CapitalExpenditures",
+      "us-gaap:PaymentsToAcquireProductiveAssets",
+      "us-gaap:PaymentsForCapitalExpenditures",
+      "us-gaap:PaymentsToAcquirePropertyPlantAndEquipmentContinuingOperations",
+      "us-gaap:PaymentsToAcquirePropertyPlantAndEquipmentDiscontinuedOperations",
+      "us-gaap:CapitalExpendituresIncurredButNotYetPaid",
+      "us-gaap:PropertyPlantAndEquipmentAdditions",
+      "us-gaap:PurchaseOfPropertyPlantAndEquipmentAbstract"
+    ]
+  },
+  "Revenue": {
+    "primary": [
+      "us-gaap:Revenues",
+      "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+      "us-gaap:RevenueFromContractWithCustomerIncludingAssessedTax",
+      "us-gaap:TotalRevenuesAndOtherIncome",
+      "us-gaap:Revenue",
+      "us-gaap:SalesRevenueNet"
+    ],
+    "secondary": [
+      "us-gaap:SalesRevenueGoodsNet",
+      "us-gaap:SalesRevenueServicesNet",
+      "us-gaap:TotalRevenueNet",
+      "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+      "us-gaap:RevenueFromContractWithCustomerIncludingAssessedTax",
+      "us-gaap:TotalRevenuesAndOtherIncome",
+      "us-gaap:TotalOperatingRevenue",
+      "us-gaap:InterestAndDividendIncomeOperating",
+      "us-gaap:NoninterestIncome",
+      "us-gaap:PremiumsEarnedNet",
+      "us-gaap:InsuranceRevenue",
+      "us-gaap:OilAndGasRevenue",
+      "us-gaap:OilAndGasSalesRevenue",
+      "us-gaap:HealthcareRevenue",
+      "us-gaap:ProductRevenue",
+      "us-gaap:PharmaceuticalProductRevenue",
+      "us-gaap:TelecommunicationRevenue",
+      "us-gaap:NetworkServicesRevenue",
+      "us-gaap:FoodAndBeverageSalesRevenue",
+      "us-gaap:FoodAndBeverageRevenue",
+      "us-gaap:RestaurantRevenue",
+      "us-gaap:RentalRevenue",
+      "us-gaap:RealEstateRevenue",
+      "us-gaap:AdvertisingRevenue",
+      "us-gaap:SubscriptionRevenue",
+      "us-gaap:PassengerRevenue",
+      "us-gaap:CargoRevenue",
+      "us-gaap:UtilityRevenue",
+      "us-gaap:ElectricalDistributionRevenue",
+      "us-gaap:ElectricalGenerationRevenue",
+      "us-gaap:ElectricUtilityRevenue",
+      "us-gaap:ElectricalGenerationRevenue",
+      "us-gaap:SalesRevenueFromEnergyCommoditiesAndServices",
+      "us-gaap:GasGatheringTransportationMarketingAndProcessingRevenue",
+      "us-gaap:SaleOfTrustAssetsToPayExpenses",
+      "us-gaap:HealthCareOrganizationRevenue",
+      "us-gaap:SalesRevenueEnergyServices",
+      "us-gaap:SalesOfOilAndGasProspects",
+      "us-gaap:RecyclingRevenue",
+      "us-gaap:RevenueFromLeasedAndOwnedHotels",
+      "us-gaap:FeesAndCommissions",
+      "us-gaap:OilAndGasRevenue",
+      "us-gaap:LicensesRevenue",
+      "us-gaap:ShippingAndHandlingRevenue",
+      "us-gaap:PhaseInPlanAmountOfCapitalizedCostsRecovered",
+      "us-gaap:OperatingLeasesIncomeStatementLeaseRevenue",
+      "us-gaap:RealEstateRevenueNet",
+      "us-gaap:AdmissionsRevenue",
+      "us-gaap:UtilityRevenue",
+      "us-gaap:TechnologyServicesRevenue",
+      "us-gaap:FoodAndBeverageRevenue",
+      "us-gaap:SalesOfRealEstate",
+      "us-gaap:Revenues",
+      "us-gaap:RevenuesExcludingInterestAndDividends",
+      "us-gaap:InvestmentAdvisoryManagementAndAdministrativeFees",
+      "us-gaap:InvestmentBankingRevenue",
+      "us-gaap:ElectricUtilityRevenue",
+      "us-gaap:HealthCareOrganizationPatientServiceRevenue",
+      "us-gaap:RoyaltyRevenue",
+      "us-gaap:RevenueOtherManufacturedProducts",
+      "us-gaap:CoalProductsAndServicesRevenue",
+      "us-gaap:RevenueFromGrants",
+      "us-gaap:RevenueFromEnrollmentAndRegistrationFeesExcludingHospitalityEnterprises",
+      "us-gaap:ConstructionMaterialsRevenue",
+      "us-gaap:VehicleTollRevenue",
+      "us-gaap:RevenueOilAndGasServices",
+      "us-gaap:InterestAndFeeIncomeLoansConsumerInstallmentAutomobilesMarineAndOtherVehicles",
+      "us-gaap:InterestAndDividendIncomeOperating",
+      "us-gaap:RevenueFromPurchasedOilAndGas",
+      "us-gaap:SalesRevenueNet",
+      "us-gaap:CargoAndFreightRevenue",
+      "us-gaap:PassengerRevenue",
+      "us-gaap:AdvertisingRevenue",
+      "us-gaap:FranchiseRevenue",
+      "us-gaap:ClearingFeesRevenue",
+      "us-gaap:InterestIncomeExpenseNet",
+      "us-gaap:ElectricDomesticRegulatedRevenue",
+      "us-gaap:SubscriptionRevenue",
+      "us-gaap:FinancialServicesRevenue",
+      "us-gaap:RegulatedAndUnregulatedOperatingRevenue",
+      "us-gaap:MembershipDuesRevenueOnGoing",
+      "us-gaap:ReimbursementRevenue",
+      "us-gaap:HealthCareOrganizationRevenueNetOfPatientServiceRevenueProvisions",
+      "us-gaap:GasDomesticRegulatedRevenue",
+      "us-gaap:RevenuesNetOfInterestExpense",
+      "us-gaap:RevenueFromContractWithCustomerIncludingAssessedTax",
+      "us-gaap:OilAndGasSalesRevenue",
+      "us-gaap:AssetManagementFees1",
+      "us-gaap:TimberRevenue",
+      "us-gaap:RetailRevenue",
+      "us-gaap:UnderwritingIncomeLoss",
+      "us-gaap:SalesRevenueGoodsNet",
+      "us-gaap:ContractsRevenue",
+      "us-gaap:RevenueFromRelatedParties",
+      "us-gaap:NetInvestmentIncome",
+      "us-gaap:RevenueMineralSales",
+      "us-gaap:LicenseAndServicesRevenue",
+      "us-gaap:RefiningAndMarketingRevenue",
+      "us-gaap:SalesRevenueServicesNet",
+      "us-gaap:MarketDataRevenue",
+      "us-gaap:RevenueSteamProductsAndServices",
+      "us-gaap:FranchisorRevenue",
+      "us-gaap:HomeBuildingRevenue",
+      "us-gaap:OtherSalesRevenueNet",
+      "us-gaap:SecondaryProcessingRevenue",
+      "us-gaap:LandSales",
+      "us-gaap:ElectricalTransmissionAndDistributionRevenue",
+      "us-gaap:NaturalGasProductionRevenue",
+      "us-gaap:GoldProductsAndServicesRevenue",
+      "us-gaap:HealthCareOrganizationPatientServiceRevenueLessProvisionForBadDebts"
+    ]
+  },
+  "COGS": {
+    "primary": [
+      "us-gaap:CostOfGoodsSold",
+      "us-gaap:CostOfRevenue"
+    ],
+    "secondary": [
+      "us-gaap:CostOfServices",
+      "us-gaap:CostOfGoodsAndServicesSold",
+      "us-gaap:CostOfSales",
+      "us-gaap:CostOfGoodsSoldExcludingDepreciation",
+      "us-gaap:CostOfSalesServices",
+      "us-gaap:CostOfGoodsSoldManufactured",
+      "us-gaap:InterestExpense",
+      "us-gaap:InsurancePolicyBenefitsAndClaims",
+      "us-gaap:InsurancePolicyAcquisitionCosts",
+      "us-gaap:ClaimsAndBenefitsExpense",
+      "us-gaap:OilAndGasProductionCosts",
+      "us-gaap:LeaseOperatingExpenses",
+      "us-gaap:CostOfProductSold",
+      "us-gaap:CostOfSalesHealthcare",
+      "us-gaap:CostOfPharmaceuticalProductSales",
+      "us-gaap:CostOfTelecommunicationServices",
+      "us-gaap:CostOfFoodAndBeveragesSold",
+      "us-gaap:CostOfFoodAndBeverageCostOfSales",
+      "us-gaap:CostOfFoodAndBeverageSales",
+      "us-gaap:CostOfRestaurantSales",
+      "us-gaap:RealEstateOperatingExpenses",
+      "us-gaap:CostOfAdvertisingRevenue",
+      "us-gaap:AircraftFuel",
+      "us-gaap:AircraftMaintenanceExpense",
+      "us-gaap:UtilityOperatingExpenses",
+      "us-gaap:CostDirectMaterial",
+      "us-gaap:CostDirectLabor",
+      "us-gaap:CostOfGoodsSoldDirectLabor",
+      "us-gaap:FinancialServicesCosts",
+      "us-gaap:DirectOperatingCosts",
+      "us-gaap:CostOfServicesOilAndGas",
+      "us-gaap:ContractRevenueCost",
+      "us-gaap:CostOfRealEstateSales",
+      "us-gaap:CostOfGoodsSold",
+      "us-gaap:CostOfNaturalGasPurchases",
+      "us-gaap:CostOfGoodsAndServicesSold",
+      "us-gaap:CostOfGoodsSoldElectric",
+      "us-gaap:TechnologyServicesCosts",
+      "us-gaap:DirectCostsOfHotels",
+      "us-gaap:CostOfMerchandiseSalesBuyingAndOccupancyCosts",
+      "us-gaap:CostOfServicesExcludingDepreciationDepletionAndAmortization",
+      "us-gaap:ExplorationExpenseMining",
+      "us-gaap:CostOfGoodsSoldOilAndGas",
+      "us-gaap:CostOfGoodsSoldExcludingDepreciationDepletionAndAmortization",
+      "us-gaap:RefiningAndMarketingCosts",
+      "us-gaap:CostOfGoldProductsAndServices",
+      "us-gaap:CostOfRealEstateRevenue",
+      "us-gaap:CostOfServices",
+      "us-gaap:CostOfGoodsSoldDirectMaterials"
+    ]
+  },
+  "Assets": {
+    "primary": [
+      "us-gaap:Assets"
+    ],
+    "secondary": [
+      "us-gaap:AssetsCurrent"
+    ]
+  },
+  "BalanceSheetDate": {
+    "primary": [
+      "dei:DocumentPeriodEndDate"
+    ],
+    "secondary": []
+  },
+  "BenefitsCostsExpenses": {
+    "primary": [
+      "us-gaap:BenefitsLossesAndExpenses"
+    ],
+    "secondary": []
+  },
+  "CommitmentsAndContingencies": {
+    "primary": [
+      "us-gaap:CommitmentsAndContingencies"
+    ],
+    "secondary": []
+  },
+  "ComprehensiveIncomeLoss": {
+    "primary": [
+      "us-gaap:ComprehensiveIncomeNetOfTaxIncludingPortionAttributableToNoncontrollingInterest"
+    ],
+    "secondary": []
+  },
+  "ComprehensiveIncomeLossAttributableToNoncontrollingInterest": {
+    "primary": [
+      "us-gaap:ComprehensiveIncomeNetOfTaxAttributableToNoncontrollingInterest"
+    ],
+    "secondary": []
+  },
+  "ComprehensiveIncomeLossAttributableToParent": {
+    "primary": [
+      "us-gaap:ComprehensiveIncomeNetOfTax"
+    ],
+    "secondary": []
+  },
+  "CostOfRevenueGoods": {
+    "primary": [
+      "us-gaap:CostOfGoodsSold"
+    ],
+    "secondary": []
+  },
+  "CostOfRevenueServices": {
+    "primary": [
+      "us-gaap:CostOfServices"
+    ],
+    "secondary": []
+  },
+  "CostsAndExpenses": {
+    "primary": [
+      "us-gaap:CostsAndExpenses"
+    ],
+    "secondary": [
+      "us-gaap:BenefitsLossesAndExpenses"
+    ]
+  },
+  "CurrentAssets": {
+    "primary": [
+      "us-gaap:AssetsCurrent"
+    ],
+    "secondary": []
+  },
+  "CurrentLiabilities": {
+    "primary": [
+      "us-gaap:LiabilitiesCurrent"
+    ],
+    "secondary": []
+  },
+  "DocumentType": {
+    "primary": [
+      "dei:DocumentType"
+    ],
+    "secondary": []
+  },
+  "EntityCentralIndexKey": {
+    "primary": [
+      "dei:EntityCentralIndexKey"
+    ],
+    "secondary": []
+  },
+  "EntityFilerCategory": {
+    "primary": [
+      "dei:EntityFilerCategory"
+    ],
+    "secondary": []
+  },
+  "EntityRegistrantName": {
+    "primary": [
+      "dei:EntityRegistrantName"
+    ],
+    "secondary": []
+  },
+  "Equity": {
+    "primary": [
+      "us-gaap:StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"
+    ],
+    "secondary": [
+      "us-gaap:LimitedLiabilityCompanyLlcMembersEquityIncludingPortionAttributableToNoncontrollingInterest",
+      "us-gaap:PartnersCapitalIncludingPortionAttributableToNoncontrollingInterest"
+    ]
+  },
+  "EquityAttributableToNoncontrollingInterest": {
+    "primary": [
+      "us-gaap:MinorityInterest"
+    ],
+    "secondary": [
+      "us-gaap:PartnersCapitalAttributableToNoncontrollingInterest",
+      "us-gaap:MembersEquityAttributableToNoncontrollingInterest"
+    ]
+  },
+  "EquityAttributableToParent": {
+    "primary": [
+      "us-gaap:StockholdersEquity"
+    ],
+    "secondary": [
+      "us-gaap:PartnersCapital",
+      "us-gaap:MembersEquity"
+    ]
+  },
+  "ExchangeGainsLosses": {
+    "primary": [
+      "us-gaap:EffectOfExchangeRateOnCashAndCashEquivalents"
+    ],
+    "secondary": [
+      "us-gaap:EffectOfExchangeRateOnCashContinuingOperations",
+      "us-gaap:EffectOfExchangeRateOnCashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+      "us-gaap:EffectOfExchangeRateOnCash",
+      "us-gaap:EffectOfExchangeRateOnCashAndCashEquivalentsDiscontinuedOperations",
+      "us-gaap:EffectOfExchangeRateOnCashAndCashEquivalentsContinuingOperations"
+    ]
+  },
+  "ExciseAndSalesTaxes": {
+    "primary": [
+      "us-gaap:ExciseAndSalesTaxes"
+    ],
+    "secondary": []
+  },
+  "FiscalPeriodFocus": {
+    "primary": [
+      "dei:DocumentFiscalPeriodFocus"
+    ],
+    "secondary": []
+  },
+  "FiscalYearEnd": {
+    "primary": [
+      "dei:CurrentFiscalYearEndDate"
+    ],
+    "secondary": []
+  },
+  "FiscalYearFocus": {
+    "primary": [
+      "dei:DocumentFiscalYearFocus"
+    ],
+    "secondary": []
+  },
+  "FixedAssets": {
+    "primary": [
+      "us-gaap:PropertyPlantAndEquipmentNet"
+    ],
+    "secondary": [
+      "us-gaap:PublicUtilitiesPropertyPlantAndEquipmentNet"
+    ]
+  },
+  "GainLossOnSalePropertiesNetTax": {
+    "primary": [
+      "us-gaap:GainLossOnSaleOfPropertiesNetOfApplicableIncomeTaxes"
+    ],
+    "secondary": []
+  },
+  "GrossProfit": {
+    "primary": [
+      "us-gaap:GrossProfit"
+    ],
+    "secondary": []
+  },
+  "IncomeLossBeforeEquityMethodInvestments": {
+    "primary": [
+      "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments"
+    ],
+    "secondary": []
+  },
+  "IncomeLossFromContinuingOperationsAfterTax": {
+    "primary": [
+      "us-gaap:IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest"
+    ],
+    "secondary": [
+      "us-gaap:IncomeLossFromContinuingOperations",
+      "us-gaap:IncomeLossBeforeExtraordinaryItemsAndCumulativeEffectOfChangeInAccountingPrinciple"
+    ]
+  },
+  "IncomeLossFromContinuingOperationsBeforeTax": {
+    "primary": [
+      "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"
+    ],
+    "secondary": [
+      "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments"
+    ]
+  },
+  "IncomeLossFromDiscontinuedOperationsNetOfTax": {
+    "primary": [
+      "us-gaap:IncomeLossFromDiscontinuedOperationsNetOfTax"
+    ],
+    "secondary": [
+      "us-gaap:IncomeLossFromDiscontinuedOperationsNetOfTaxAttributableToReportingEntity"
+    ]
+  },
+  "IncomeLossFromDiscontinuedOperationsNetOfTaxAdjustmentToPriorYearGainLossOnDisposal": {
+    "primary": [
+      "us-gaap:DiscontinuedOperationAmountOfAdjustmentToPriorPeriodGainLossOnDisposalNetOfTax"
+    ],
+    "secondary": []
+  },
+  "IncomeLossFromDiscontinuedOperationsNetOfTaxDuringPhaseOut": {
+    "primary": [
+      "us-gaap:DiscontinuedOperationIncomeLossFromDiscontinuedOperationDuringPhaseOutPeriodNetOfTax"
+    ],
+    "secondary": []
+  },
+  "IncomeLossFromDiscontinuedOperationsNetOfTaxGainLossOnDisposal": {
+    "primary": [
+      "us-gaap:DiscontinuedOperationGainLossOnDisposalOfDiscontinuedOperationNetOfTax"
+    ],
+    "secondary": []
+  },
+  "IncomeLossFromDiscontinuedOperationsNetOfTaxProvisionForGainLossOnDisposal": {
+    "primary": [
+      "us-gaap:DiscontinuedOperationProvisionForLossGainOnDisposalNetOfTax"
+    ],
+    "secondary": []
+  },
+  "IncomeLossFromEquityMethodInvestments": {
+    "primary": [
+      "us-gaap:IncomeLossFromEquityMethodInvestments"
+    ],
+    "secondary": [
+      "us-gaap:EquityMethodInvestmentSummarizedFinancialInformationNetIncomeLoss",
+      "us-gaap:IncomeLossFromEquityMethodInvestmentsNetOfDividendsOrDistributions"
+    ]
+  },
+  "IncomeTaxExpenseBenefit": {
+    "primary": [
+      "us-gaap:IncomeTaxExpenseBenefit"
+    ],
+    "secondary": [
+      "us-gaap:FederalIncomeTaxExpenseBenefitContinuingOperations",
+      "us-gaap:StateAndLocalIncomeTaxExpenseBenefitContinuingOperations",
+      "us-gaap:IncomeTaxExpenseBenefitContinuingOperations",
+      "us-gaap:FederalHomeLoanBankAssessments"
+    ]
+  },
+  "IncomeTaxExpenseBenefitCurrent": {
+    "primary": [
+      "us-gaap:CurrentIncomeTaxExpenseBenefit"
+    ],
+    "secondary": []
+  },
+  "IncomeTaxExpenseBenefitDeferred": {
+    "primary": [
+      "us-gaap:DeferredIncomeTaxExpenseBenefit"
+    ],
+    "secondary": []
+  },
+  "InterestAndDebtExpense": {
+    "primary": [
+      "us-gaap:InterestAndDebtExpense"
+    ],
+    "secondary": []
+  },
+  "InterestAndDividendIncomeOperating": {
+    "primary": [
+      "us-gaap:InterestAndDividendIncomeOperating"
+    ],
+    "secondary": []
+  },
+  "InterestExpenseOperating": {
+    "primary": [
+      "us-gaap:InterestExpense"
+    ],
+    "secondary": [
+      "us-gaap:InterestExpenseBorrowings"
+    ]
+  },
+  "InterestIncomeExpenseAfterProvisionForLosses": {
+    "primary": [
+      "us-gaap:InterestIncomeExpenseAfterProvisionForLoanLoss"
+    ],
+    "secondary": [
+      "us-gaap:NetInterestIncomeLossAfterProvisionForLoanLosses"
+    ]
+  },
+  "InterestIncomeExpenseOperatingNet": {
+    "primary": [
+      "us-gaap:InterestIncomeExpenseNet"
+    ],
+    "secondary": []
+  },
+  "Liabilities": {
+    "primary": [
+      "us-gaap:Liabilities"
+    ],
+    "secondary": []
+  },
+  "LiabilitiesAndEquity": {
+    "primary": [
+      "us-gaap:LiabilitiesAndStockholdersEquity"
+    ],
+    "secondary": [
+      "us-gaap:LiabilitiesAndPartnersCapital"
+    ]
+  },
+  "NetCashFlow": {
+    "primary": [
+      "us-gaap:CashAndCashEquivalentsPeriodIncreaseDecrease"
+    ],
+    "secondary": [
+      "us-gaap:CashPeriodIncreaseDecrease",
+      "us-gaap:CashAndCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect"
+    ]
+  },
+  "NetCashFlowContinuing": {
+    "primary": [
+      "us-gaap:NetCashProvidedByUsedInContinuingOperations"
+    ],
+    "secondary": []
+  },
+  "NetCashFlowDiscontinued": {
+    "primary": [
+      "us-gaap:NetCashProvidedByUsedInDiscontinuedOperations"
+    ],
+    "secondary": []
+  },
+  "NetCashFlowFromFinancingActivities": {
+    "primary": [
+      "us-gaap:NetCashProvidedByUsedInFinancingActivities"
+    ],
+    "secondary": []
+  },
+  "NetCashFlowFromFinancingActivitiesContinuing": {
+    "primary": [
+      "us-gaap:NetCashProvidedByUsedInFinancingActivitiesContinuingOperations"
+    ],
+    "secondary": []
+  },
+  "NetCashFlowFromFinancingActivitiesDiscontinued": {
+    "primary": [
+      "us-gaap:CashProvidedByUsedInFinancingActivitiesDiscontinuedOperations"
+    ],
+    "secondary": []
+  },
+  "NetCashFlowFromInvestingActivities": {
+    "primary": [
+      "us-gaap:NetCashProvidedByUsedInInvestingActivities"
+    ],
+    "secondary": []
+  },
+  "NetCashFlowFromInvestingActivitiesContinuing": {
+    "primary": [
+      "us-gaap:NetCashProvidedByUsedInInvestingActivitiesContinuingOperations"
+    ],
+    "secondary": []
+  },
+  "NetCashFlowFromInvestingActivitiesDiscontinued": {
+    "primary": [
+      "us-gaap:CashProvidedByUsedInInvestingActivitiesDiscontinuedOperations"
+    ],
+    "secondary": []
+  },
+  "NetCashFlowFromOperatingActivities": {
+    "primary": [
+      "us-gaap:NetCashProvidedByUsedInOperatingActivities"
+    ],
+    "secondary": []
+  },
+  "NetCashFlowFromOperatingActivitiesContinuing": {
+    "primary": [
+      "us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations"
+    ],
+    "secondary": []
+  },
+  "NetCashFlowFromOperatingActivitiesDiscontinued": {
+    "primary": [
+      "us-gaap:CashProvidedByUsedInOperatingActivitiesDiscontinuedOperations"
+    ],
+    "secondary": []
+  },
+  "NetIncomeLoss": {
+    "primary": [
+      "us-gaap:ProfitLoss"
+    ],
+    "secondary": [
+      "us-gaap:IncomeLossIncludingPortionAttributableToNoncontrollingInterest"
+    ]
+  },
+  "NetIncomeLossAttributableToNoncontrollingInterest": {
+    "primary": [
+      "us-gaap:NetIncomeLossAttributableToNoncontrollingInterest"
+    ],
+    "secondary": [
+      "us-gaap:IncomeLossAttributableToNoncontrollingInterest",
+      "us-gaap:IncomeLossFromContinuingOperationsAttributableToNoncontrollingEntity"
+    ]
+  },
+  "NetIncomeLossAttributableToNonredeemableNoncontrollingInterest": {
+    "primary": [
+      "us-gaap:NetIncomeLossAttributableToNonredeemableNoncontrollingInterest"
+    ],
+    "secondary": [
+      "us-gaap:NoncontrollingInterestInNetIncomeLossPreferredUnitHoldersNonredeemable"
+    ]
+  },
+  "NetIncomeLossAttributableToParent": {
+    "primary": [
+      "us-gaap:NetIncomeLoss"
+    ],
+    "secondary": [
+      "us-gaap:IncomeLossAttributableToParent"
+    ]
+  },
+  "NetIncomeLossAttributableToRedeemableNoncontrollingInterest": {
+    "primary": [
+      "us-gaap:NetIncomeLossAttributableToRedeemableNoncontrollingInterest"
+    ],
+    "secondary": [
+      "us-gaap:NoncontrollingInterestInNetIncomeLossOperatingPartnershipsRedeemable"
+    ]
+  },
+  "NetIncomeLossAvailableToCommonStockholdersBasic": {
+    "primary": [
+      "us-gaap:NetIncomeLossAvailableToCommonStockholdersBasic"
+    ],
+    "secondary": []
+  },
+  "NoncurrentAssets": {
+    "primary": [
+      "us-gaap:AssetsNoncurrent"
+    ],
+    "secondary": []
+  },
+  "NoncurrentLiabilities": {
+    "primary": [
+      "us-gaap:LiabilitiesNoncurrent"
+    ],
+    "secondary": []
+  },
+  "NoninterestExpense": {
+    "primary": [
+      "us-gaap:NoninterestExpense"
+    ],
+    "secondary": []
+  },
+  "NoninterestIncome": {
+    "primary": [
+      "us-gaap:NoninterestIncome"
+    ],
+    "secondary": []
+  },
+  "NonoperatingIncomeLoss": {
+    "primary": [
+      "us-gaap:NonoperatingIncomeExpense"
+    ],
+    "secondary": []
+  },
+  "OperatingExpenses": {
+    "primary": [
+      "us-gaap:OperatingExpenses"
+    ],
+    "secondary": [
+      "us-gaap:UtilitiesOperatingExpense",
+      "us-gaap:OperatingExpenses"
+    ]
+  },
+  "OperatingIncomeLoss": {
+    "primary": [
+      "us-gaap:OperatingIncomeLoss"
+    ],
+    "secondary": [
+      "us-gaap:IncomeLossFromContinuingOperationsBeforeInterestExpenseInterestIncomeIncomeTaxesExtraordinaryItemsNoncontrollingInterestsNet"
+    ]
+  },
+  "OtherComprehensiveIncomeLoss": {
+    "primary": [
+      "us-gaap:OtherComprehensiveIncomeLossNetOfTax"
+    ],
+    "secondary": []
+  },
+  "OtherComprehensiveIncomeLossAttributableToNoncontrollingInterest": {
+    "primary": [
+      "us-gaap:OtherComprehensiveIncomeLossNetOfTaxPortionAttributableToNoncontrollingInterest"
+    ],
+    "secondary": []
+  },
+  "OtherComprehensiveIncomeLossAttributableToParent": {
+    "primary": [
+      "us-gaap:OtherComprehensiveIncomeLossNetOfTaxPortionAttributableToParent"
+    ],
+    "secondary": []
+  },
+  "OtherOperatingIncomeExpenses": {
+    "primary": [
+      "us-gaap:OtherOperatingIncome"
+    ],
+    "secondary": []
+  },
+  "OtherThanFixedNoncurrentAssets": {
+    "primary": [
+      "us-gaap:AssetsNoncurrent"
+    ],
+    "secondary": [
+      "us-gaap:AssetsNoncurrentOtherThanNoncurrentInvestmentsAndPropertyPlantAndEquipment"
+    ]
+  },
+  "ParticipatingSecuritiesDistributedAndUndistributedEarningsLossBasic": {
+    "primary": [
+      "us-gaap:ParticipatingSecuritiesDistributedAndUndistributedEarningsLossBasic"
+    ],
+    "secondary": []
+  },
+  "PreferredStockDividendsAndOtherAdjustments": {
+    "primary": [
+      "us-gaap:PreferredStockDividendsAndOtherAdjustments"
+    ],
+    "secondary": []
+  },
+  "ProvisionForLoanLeaseAndOtherLosses": {
+    "primary": [
+      "us-gaap:ProvisionForLoanLeaseAndOtherLosses"
+    ],
+    "secondary": [
+      "us-gaap:ProvisionForLoanLossesExpensed",
+      "us-gaap:ProvisionForLoanAndLeaseLosses"
+    ]
+  },
+  "RedeemableNoncontrollingInterest": {
+    "primary": [
+      "us-gaap:RedeemableNoncontrollingInterestEquityCarryingAmount"
+    ],
+    "secondary": [
+      "us-gaap:RedeemableNoncontrollingInterestEquityOtherFairValue",
+      "us-gaap:RedeemableNoncontrollingInterestEquityFairValue"
+    ]
+  },
+  "RedeemableNoncontrollingInterestCommon": {
+    "primary": [
+      "us-gaap:RedeemableNoncontrollingInterestEquityCommonCarryingAmount"
+    ],
+    "secondary": []
+  },
+  "RedeemableNoncontrollingInterestOther": {
+    "primary": [
+      "us-gaap:RedeemableNoncontrollingInterestEquityOtherCarryingAmount"
+    ],
+    "secondary": []
+  },
+  "RedeemableNoncontrollingInterestPreferred": {
+    "primary": [
+      "us-gaap:RedeemableNoncontrollingInterestEquityPreferredCarryingAmount"
+    ],
+    "secondary": []
+  },
+  "Revenues": {
+    "primary": [
+      "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax"
+    ],
+    "secondary": [
 
-      "COGS": {
-        "primary": [
-          "us-gaap:CostOfGoodsSold",
-          "us-gaap:CostOfRevenue"
-        ],
-        "secondary": [
-          "us-gaap:CostOfServices",
-          "us-gaap:CostOfGoodsAndServicesSold",
-          "us-gaap:CostOfSales",
-          "us-gaap:CostOfGoodsSoldExcludingDepreciation",
-          "us-gaap:CostOfSalesServices",
-          "us-gaap:CostOfGoodsSoldManufactured",
-          "us-gaap:InterestExpense",
-          "us-gaap:InsurancePolicyBenefitsAndClaims",
-          "us-gaap:InsurancePolicyAcquisitionCosts",
-          "us-gaap:ClaimsAndBenefitsExpense",
-          "us-gaap:OilAndGasProductionCosts",
-          "us-gaap:LeaseOperatingExpenses",
-          "us-gaap:CostOfProductSold",
-          "us-gaap:CostOfSalesHealthcare",
-          "us-gaap:CostOfPharmaceuticalProductSales",
-          "us-gaap:CostOfTelecommunicationServices",
-          "us-gaap:CostOfFoodAndBeveragesSold",
-          "us-gaap:CostOfFoodAndBeverageCostOfSales",
-          "us-gaap:CostOfFoodAndBeverageSales",
-          "us-gaap:CostOfRestaurantSales",
-          "us-gaap:RealEstateOperatingExpenses",
-          "us-gaap:CostOfAdvertisingRevenue",
-          "us-gaap:AircraftFuel",
-          "us-gaap:AircraftMaintenanceExpense",
-          "us-gaap:UtilityOperatingExpenses",
-          "us-gaap:CostDirectMaterial",
-          "us-gaap:CostDirectLabor",
-          "us-gaap:CostOfGoodsSoldDirectLabor"
-        ]
-      }
-    }
+    ]
+  },
+  "RevenuesExcludingInterestDividends": {
+    "primary": [
+      "us-gaap:RevenuesExcludingInterestAndDividends"
+    ],
+    "secondary": [
+      "us-gaap:BrokerageCommissionsRevenue",
+      "us-gaap:InvestmentBankingRevenue"
+    ]
+  },
+  "RevenuesNetInterestExpense": {
+    "primary": [
+      "us-gaap:RevenuesNetOfInterestExpense"
+    ],
+    "secondary": []
+  },
+  "TemporaryEquity": {
+    "primary": [
+      "us-gaap:TemporaryEquityCarryingAmountIncludingPortionAttributableToNoncontrollingInterests"
+    ],
+    "secondary": [
+      "us-gaap:RedeemablePreferredStockCarryingAmount",
+      "us-gaap:TemporaryEquityValueExcludingAdditionalPaidInCapital"
+    ]
+  },
+  "TemporaryEquityAttributableToParent": {
+    "primary": [
+      "us-gaap:TemporaryEquityCarryingAmountAttributableToParent"
+    ],
+    "secondary": []
+  },
+  "TradingSymbol": {
+    "primary": [
+      "dei:TradingSymbol"
+    ],
+    "secondary": []
+  },
+  "UndistributedEarningsLossAllocatedToParticipatingSecuritiesBasic": {
+    "primary": [
+      "us-gaap:UndistributedEarningsLossAllocatedToParticipatingSecuritiesBasic"
+    ],
+    "secondary": []
+  }
+}

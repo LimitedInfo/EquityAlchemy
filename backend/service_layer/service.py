@@ -1,6 +1,80 @@
 import backend.domain.model as model
 import backend.service_layer.uow as uow
 import pandas as pd
+import requests
+from datetime import datetime, timedelta
+from typing import List, Dict, Set
+import os
+
+
+def find_unique_companies_with_recent_10q_filings(api_key: str = None) -> List[Dict[str, str]]:
+    if not api_key:
+        api_key = os.getenv('SEC_API_KEY')
+        if not api_key:
+            raise ValueError("SEC_API_KEY environment variable is required or pass api_key parameter")
+
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=90)
+
+    start_date_str = start_date.strftime("%Y-%m-%d")
+    end_date_str = end_date.strftime("%Y-%m-%d")
+
+    unique_companies: Set[str] = set()
+    companies_list: List[Dict[str, str]] = []
+
+    from_index = 0
+    size = 200
+
+    while True:
+        query_payload = {
+            "query": f"formType:\"10-Q\" AND filedAt:[{start_date_str} TO {end_date_str}]",
+            "from": str(from_index),
+            "size": str(size),
+            "sort": [{"filedAt": {"order": "desc"}}]
+        }
+
+        try:
+            response = requests.post(
+                "https://api.sec-api.io",
+                json=query_payload,
+                headers={"Authorization": api_key},
+                timeout=30
+            )
+            response.raise_for_status()
+
+            data = response.json()
+            filings = data.get("filings", [])
+
+            if not filings:
+                break
+
+            for filing in filings:
+                cik = filing.get("cik", "")
+                ticker = filing.get("ticker", "")
+                company_name = filing.get("companyName", "")
+
+                company_key = f"{cik}:{ticker}:{company_name}"
+
+                if company_key not in unique_companies:
+                    unique_companies.add(company_key)
+                    companies_list.append({
+                        "cik": cik,
+                        "ticker": ticker,
+                        "company_name": company_name,
+                        "filing_date": filing.get("filedAt", "")
+                    })
+
+            if len(filings) < size:
+                break
+
+            from_index += size
+
+        except requests.exceptions.RequestException as e:
+            raise RuntimeError(f"Failed to fetch SEC filings: {str(e)}")
+        except Exception as e:
+            raise RuntimeError(f"Error processing SEC API response: {str(e)}")
+
+    return sorted(companies_list, key=lambda x: x["company_name"])
 
 
 def  get_company_by_ticker(ticker: str, uow_instance: uow.AbstractUnitOfWork) -> model.Company:
@@ -116,6 +190,17 @@ def join_financial_statements_with_mapping(financial_statements: list[pd.DataFra
     return result_df
 
 
+def load_data(filing: model.Filing, uow_instance: uow.AbstractUnitOfWork) -> model.Filing:
+    filing_data, cover_page = uow_instance.sec_filings.get_filing_data(
+        filing.cik,
+        filing.accession_number,
+        filing.primary_document
+    )
+    filing.data = filing_data
+    filing.cover_page = cover_page
+    return filing
+
+
 def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUnitOfWork, form_type: str = None, use_database: bool = True) -> model.CombinedFinancialStatements:
     if use_database:
         with uow_instance as uow:
@@ -130,24 +215,12 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
     if form_type == '10-Q':
         quarterly_filings_to_load = company.get_filings_by_type('10-Q')
         # get data for the first filing so we can get the number of years covered.
-        filing_data, cover_page = uow_instance.sec_filings.get_filing_data(
-            quarterly_filings_to_load[0].cik,
-            quarterly_filings_to_load[0].accession_number,
-            quarterly_filings_to_load[0].primary_document
-        )
-        quarterly_filings_to_load[0].data = filing_data
-        quarterly_filings_to_load[0].cover_page = cover_page
+        load_data(quarterly_filings_to_load[0], uow_instance)
         quarterly_filings_to_load = company.select_filings_with_processing_pattern(quarterly_filings_to_load, '10-Q')
 
         # get all the data for the quarterly filings
         for filing in quarterly_filings_to_load:
-            filing_data, cover_page = uow_instance.sec_filings.get_filing_data(
-                filing.cik,
-                filing.accession_number,
-                filing.primary_document
-            )
-            filing.data = filing_data
-            filing.cover_page = cover_page
+            load_data(filing, uow_instance)
         # remove filings with no data
         quarterly_filings_to_load = [filing for filing in quarterly_filings_to_load if filing.data]
 
@@ -158,13 +231,7 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
         annual_filings_to_load = company.get_filings_by_type('10-K')
         # get all the data for the annual filings
         for filing in annual_filings_to_load:
-            filing_data, cover_page = uow_instance.sec_filings.get_filing_data(
-                filing.cik,
-                filing.accession_number,
-                filing.primary_document
-            )
-            filing.data = filing_data
-            filing.cover_page = cover_page
+            load_data(filing, uow_instance)
         # remove filings with no data
         annual_filings_to_load = [filing for filing in annual_filings_to_load if filing.data and len(filing.data) > 3]
 
@@ -176,25 +243,11 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
 
     elif form_type == '10-K':
             annual_filings_to_load = company.get_filings_by_type('10-K')
-            filing_data, cover_page = uow_instance.sec_filings.get_filing_data(
-                annual_filings_to_load[0].cik,
-                annual_filings_to_load[0].accession_number,
-                annual_filings_to_load[0].primary_document
-            )
-            annual_filings_to_load[0].data = filing_data
-            annual_filings_to_load[0].cover_page = cover_page
+            load_data(annual_filings_to_load[0], uow_instance)
             annual_filings_to_load = company.select_filings_with_processing_pattern(annual_filings_to_load, '10-K')
 
             for filing in annual_filings_to_load:
-                filing_data, cover_page = uow_instance.sec_filings.get_filing_data(
-                    filing.cik,
-                    filing.accession_number,
-                    filing.primary_document
-                )
-                if not filing_data:
-                    raise ValueError(f"No data found for filing {filing.accession_number} - {filing.primary_document}")
-                filing.data = filing_data
-                filing.cover_page = cover_page
+                load_data(filing, uow_instance)
 
                 filing_url = uow_instance.sec_filings.get_filing_url(
                     filing.cik,
@@ -204,8 +257,6 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
                 filing.filing_url = filing_url
 
             annual_filings_to_load = [filing for filing in annual_filings_to_load if filing.data and len(filing.data) > 3]
-
-
 
     else:
         raise ValueError(f"Invalid form type: {form_type}")

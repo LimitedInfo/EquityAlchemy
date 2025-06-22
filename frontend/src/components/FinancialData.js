@@ -78,7 +78,7 @@ function FinancialData({ isAuthenticated }) {
                 <tr>
                   <th>Metric</th>
                   {financialData.periods.map(period => (
-                    <th key={period}>{period}</th>
+                    <th key={period}>{period.split(':')[1] || period}</th>
                   ))}
                 </tr>
               </thead>
@@ -89,12 +89,24 @@ function FinancialData({ isAuthenticated }) {
                     {financialData.periods.map(period => (
                       <td key={`${metric.name}-${period}`}>
                         {metric.values[period] !== undefined
-                          ? new Intl.NumberFormat('en-US', {
-                              style: 'currency',
-                              currency: 'USD',
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 0
-                            }).format(metric.values[period])
+                          ? metric.name.includes('EPS') || metric.name.includes('Earnings Per Share')
+                            ? new Intl.NumberFormat('en-US', {
+                                style: 'currency',
+                                currency: 'USD',
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                              }).format(metric.values[period])
+                            : metric.name.includes('Average Shares') || metric.name.includes('Shares')
+                              ? new Intl.NumberFormat('en-US', {
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 0
+                                }).format(metric.values[period])
+                              : new Intl.NumberFormat('en-US', {
+                                  style: 'currency',
+                                  currency: 'USD',
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 0
+                                }).format(metric.values[period])
                           : '-'}
                       </td>
                     ))}
@@ -105,6 +117,7 @@ function FinancialData({ isAuthenticated }) {
           </div>
         </div>
       )}
+      <p><em>Units displayed in millions where applicable</em></p>
     </div>
   );
 }

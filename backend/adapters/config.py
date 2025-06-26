@@ -15,10 +15,10 @@ def get_postgres_uri() -> str:
         return f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
     else:
         host = os.environ.get("DB_HOST", "localhost")
-        port = os.environ.get("DB_PORT", "5432")
-        password = os.environ.get("DB_PASSWORD", "postgres")
+        port = os.environ.get("DB_PORT", "15432")
+        password = os.environ.get("DATABASE_PASSWORD", "postgres")
         user = os.environ.get("DB_USER", "postgres")
-        db_name = os.environ.get("DB_NAME", "combined_financial_statements")
+        db_name = os.environ.get("DB_NAME", "postgres")
         print(f"postgresql://{user}:{password}@{host}:{port}/{db_name}")
         return f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
 

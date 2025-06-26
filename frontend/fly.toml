@@ -1,0 +1,27 @@
+# fly.toml app configuration file generated for basic-sparkling-thunder-7964 on 2025-02-19T10:46:09-05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'basic-sparkling-thunder-7964'
+primary_region = 'gig'
+
+# Add regions configuration
+[regions]
+serve = ["gig", "iad"]
+
+
+[build]
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1

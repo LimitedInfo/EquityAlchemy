@@ -1,45 +1,125 @@
 import React, { useState, useEffect } from 'react';
-import { getIncomeStatements } from '../services/api';
+import { getIncomeStatements, getFreeQueryStatus } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@clerk/clerk-react';
 
-function FinancialData({ isAuthenticated }) {
+function FinancialData() {
   const [ticker, setTicker] = useState('');
-  const [formType, setFormType] = useState('');
+  const [formType, setFormType] = useState('10-K');
   const [financialData, setFinancialData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [freeQueryStatus, setFreeQueryStatus] = useState(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const navigate = useNavigate();
+  const { isSignedIn } = useAuth();
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-    }
-  }, [isAuthenticated, navigate]);
+    const checkFreeQueryStatus = async () => {
+      if (!isSignedIn) {
+        try {
+          const response = await getFreeQueryStatus();
+          setFreeQueryStatus(response.data);
+        } catch (err) {
+          console.error('Failed to get free query status:', err);
+        }
+      }
+    };
+
+    checkFreeQueryStatus();
+  }, [isSignedIn]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setShowLoginPrompt(false);
 
     try {
       const response = await getIncomeStatements(ticker, formType || null);
       setFinancialData(response.data);
+
+      if (!isSignedIn && response.headers['x-free-query-used'] === 'true') {
+        setShowLoginPrompt(true);
+        setFreeQueryStatus(prev => ({
+          ...prev,
+          free_queries_used: 1,
+          free_queries_remaining: 0,
+          has_free_queries: false
+        }));
+      }
     } catch (err) {
-      setError('Failed to fetch financial data');
       console.error('Financial data fetch error:', err);
 
-      // If unauthorized, redirect to login
       if (err.response && err.response.status === 401) {
-        navigate('/login');
+        if (err.response.headers['x-free-limit-exceeded'] === 'true') {
+          setError('You have used your free query. Please sign in to access more financial data.');
+          setShowLoginPrompt(true);
+        } else if (!isSignedIn) {
+          setError('Please sign in to access financial data.');
+          setShowLoginPrompt(true);
+        } else {
+          setError('Authentication error. Please try again or contact support.');
+        }
+      } else {
+        setError('Failed to fetch financial data');
       }
     } finally {
       setLoading(false);
     }
   };
 
+  const handleLoginRedirect = () => {
+    navigate('/login');
+  };
+
   return (
     <div className="financial-container">
       <h2>Financial Data</h2>
+
+      {!isSignedIn && freeQueryStatus && (
+        <div className="free-query-info" style={{
+          background: 'rgb(14, 13, 13)',
+          border: '1px solid rgb(35, 184, 207)',
+          padding: '10px',
+          borderRadius: '5px',
+          marginBottom: '20px',
+          textAlign: 'center'
+        }}>
+          {freeQueryStatus.has_free_queries ? (
+            <p><strong>Free Trial:</strong> You can make {freeQueryStatus.free_queries_remaining} free query before signing in.</p>
+          ) : (
+            <p><strong>Free Trial Used:</strong> Please sign in to continue accessing financial data.</p>
+          )}
+        </div>
+      )}
+
+      {showLoginPrompt && (
+        <div className="login-prompt" style={{
+          background: 'rgb(14, 13, 13)',
+          border: '1px solid rgb(35, 184, 207)',
+          padding: '15px',
+          borderRadius: '5px',
+          marginBottom: '20px',
+          textAlign: 'center'
+        }}>
+          <p><strong>Enjoying the data?</strong> Sign in to get unlimited access to financial statements!</p>
+          <button
+            onClick={handleLoginRedirect}
+            style={{
+              background: '#007bff',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              marginTop: '10px'
+            }}
+          >
+            Sign In Now
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
@@ -52,15 +132,33 @@ function FinancialData({ isAuthenticated }) {
           />
         </div>
         <div className="form-group">
-          <label>Form Type (optional):</label>
-          <input
-            type="text"
-            value={formType}
-            onChange={(e) => setFormType(e.target.value)}
-            placeholder="e.g., 10-K, 10-Q"
-          />
+          <label>Form Type:</label>
+          <div className="radio-group" style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+            <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
+              <input
+                type="radio"
+                value="10-K"
+                checked={formType === '10-K' || formType === ''}
+                onChange={(e) => setFormType(e.target.value)}
+              />
+              10-K - Annual
+            </label>
+            <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', color: '#888', whiteSpace: 'nowrap' }}>
+              <input
+                type="radio"
+                value="10-Q"
+                checked={formType === '10-Q'}
+                onChange={(e) => setFormType(e.target.value)}
+                disabled
+              />
+              10-Q - Coming Soon
+            </label>
+          </div>
         </div>
-        <button type="submit" disabled={loading}>
+        <button
+          type="submit"
+          disabled={loading || (!isSignedIn && freeQueryStatus && !freeQueryStatus.has_free_queries)}
+        >
           {loading ? 'Loading...' : 'Get Data'}
         </button>
       </form>

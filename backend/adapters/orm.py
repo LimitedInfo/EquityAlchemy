@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, func, create_engine, Text
+from sqlalchemy import Column, String, DateTime, func, create_engine, Text, Numeric, Index
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.types import TypeDecorator, CHAR
@@ -91,6 +91,39 @@ class CombinedFinancialStatementsORM(Base):
 
     __table_args__ = (
         {"schema": None},  # Don't use schema for SQLite compatibility
+    )
+
+
+class StockPriceORM(Base):
+    __tablename__ = "stock_prices"
+
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    ticker = Column(String, nullable=False)
+    date = Column(DateTime(timezone=True), nullable=False)
+    price = Column(Numeric(precision=10, scale=2), nullable=False)
+    market_reference_price = Column(Numeric(precision=10, scale=2), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index('ix_stock_prices_ticker_date', 'ticker', 'date'),
+        {"schema": None},
+    )
+
+
+class SignificantMoveORM(Base):
+    __tablename__ = "significant_moves"
+
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    ticker = Column(String, nullable=False)
+    occurred_at = Column(DateTime(timezone=True), nullable=False)
+    pct_change = Column(Numeric(precision=8, scale=4), nullable=False)
+    catalyst = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index('ix_significant_moves_ticker_date', 'ticker', 'occurred_at'),
+        {"schema": None},
     )
 
 

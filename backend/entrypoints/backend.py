@@ -1,26 +1,16 @@
-from fastapi import FastAPI, Request, Response, Depends, HTTPException, Cookie
+from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-import uuid
 from typing import Dict, Optional, List
 import backend.service_layer.service as service
 import backend.service_layer.uow as uow
-import backend.adapters.repository as repository
 import pandas as pd
 import traceback
-from typing import List, Optional
 
 
-sessions: Dict[str, dict] = {}
-
-class User(BaseModel):
-    username: str
-    password: str
-
-class UserProfile(BaseModel):
-    username: str
+free_query_usage: Dict[str, int] = {}
 
 class FinancialMetric(BaseModel):
     name: str
@@ -59,49 +49,71 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicitly list methods
-    allow_headers=["*"],  # Allows all headers
-    expose_headers=["*"],  # Expose all headers
-    max_age=600,  # Cache preflight requests for 10 minutes
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
 )
 
-def get_current_user(session_id: Optional[str] = Cookie(None)):
-    if not session_id or session_id not in sessions:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return sessions[session_id]
+def get_client_ip(request: Request) -> str:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host
+
+def check_free_query_limit(request: Request) -> bool:
+    client_ip = get_client_ip(request)
+    usage_count = free_query_usage.get(client_ip, 0)
+    return usage_count < 1
+
+def increment_free_query_usage(request: Request):
+    client_ip = get_client_ip(request)
+    free_query_usage[client_ip] = free_query_usage.get(client_ip, 0) + 1
+
+def is_authenticated(request: Request) -> bool:
+    """Simple check for authentication - look for auth headers or session cookies"""
+    # Check for Authorization header (from Clerk frontend)
+    auth_header = request.headers.get("authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        return True
+
+    # Check for Clerk session cookies
+    if hasattr(request, 'cookies'):
+        clerk_session = request.cookies.get("__session")
+        if clerk_session:
+            return True
+
+    return False
 
 @app.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Financial Data API powered by Clerk Authentication"}
 
-@app.post("/login")
-async def login(user: User, response: Response):
-    session_id = str(uuid.uuid4())
-    sessions[session_id] = {"username": user.username}
-
-    response.set_cookie(key="session_id", value=session_id, httponly=True)
-
-    return {"status": "success", "message": "Login successful"}
-
-@app.get("/user/profile")
-async def get_profile(user_data: dict = Depends(get_current_user)):
-    return UserProfile(username=user_data["username"])
-
-@app.post("/logout")
-async def logout(response: Response, session_id: Optional[str] = Cookie(None)):
-    if session_id and session_id in sessions:
-        del sessions[session_id]
-
-    response.delete_cookie(key="session_id")
-
-    return {"status": "success", "message": "Logout successful"}
-
-
+@app.get("/api/free-query-status")
+async def get_free_query_status(request: Request):
+    client_ip = get_client_ip(request)
+    usage_count = free_query_usage.get(client_ip, 0)
+    return {
+        "free_queries_used": usage_count,
+        "free_queries_remaining": max(0, 1 - usage_count),
+        "has_free_queries": usage_count < 1
+    }
 
 @app.get("/api/financial/income/{ticker}")
-async def get_income_statements(ticker: str, form_type: Optional[str] = None):
+async def get_income_statements(ticker: str, request: Request, form_type: Optional[str] = None):
+    # Check if user is authenticated
+    user_authenticated = is_authenticated(request)
+
+    # If not authenticated and no free queries left, reject request
+    if not user_authenticated and not check_free_query_limit(request):
+        raise HTTPException(
+            status_code=401,
+            detail="Free query limit exceeded. Please sign in to continue accessing financial data.",
+            headers={"X-Free-Limit-Exceeded": "true"}
+        )
+
     try:
         with uow.SqlAlchemyUnitOfWork() as uow_instance:
             combined_financial_statements = service.get_consolidated_income_statements(ticker, uow_instance, form_type=form_type)
@@ -133,12 +145,24 @@ async def get_income_statements(ticker: str, form_type: Optional[str] = None):
                     values=values
                 ))
 
-        return FinancialStatements(
+        # Track free query usage for non-authenticated users
+        if not user_authenticated:
+            increment_free_query_usage(request)
+
+        response_data = FinancialStatements(
             ticker=combined_financial_statements.ticker,
             form_type=combined_financial_statements.form_type,
             metrics=metrics,
             periods=sorted_periods
         )
+
+        response = JSONResponse(content=response_data.dict())
+        if not user_authenticated:
+            response.headers["X-Free-Query-Used"] = "true"
+            response.headers["X-Remaining-Free-Queries"] = "0"
+
+        return response
+
     except Exception as e:
         print(f"--- Exception in /api/financial/income/{ticker} ---")
         traceback.print_exc()

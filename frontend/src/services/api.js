@@ -2,26 +2,36 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:8000';
 
-// Create axios instance with credentials
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
 });
 
-// Authentication services
-export const login = async (username, password) => {
-  return api.post('/login', { username, password });
+// Add request interceptor to include Clerk session token
+api.interceptors.request.use(async (config) => {
+  // Check if we're in a browser environment and Clerk is available
+  if (typeof window !== 'undefined' && window.Clerk) {
+    try {
+      const session = await window.Clerk.session;
+      if (session) {
+        const token = await session.getToken();
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      }
+    } catch (error) {
+      console.log('No active Clerk session:', error);
+    }
+  }
+  return config;
+}, (error) => {
+  return Promise.reject(error);
+});
+
+export const getFreeQueryStatus = async () => {
+  return api.get('/api/free-query-status');
 };
 
-export const logout = async () => {
-  return api.post('/logout');
-};
-
-export const getUserProfile = async () => {
-  return api.get('/user/profile');
-};
-
-// Financial data services
 export const getIncomeStatements = async (ticker, formType = null) => {
   let url = `/api/financial/income/${ticker}`;
   if (formType) {

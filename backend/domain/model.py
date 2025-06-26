@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 import pandas as pd
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Protocol
 import json
 import os
+from datetime import datetime, date
+from decimal import Decimal
 
 def load_xbrl_mappings():
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -368,6 +370,11 @@ class Company:
 
         return selected
 
+class PriceData:
+    def __init__(self, ticker: str, start_date: datetime, end_date: datetime) -> None:
+        self.ticker = ticker
+        self.start_date = start_date
+        self.end_date = end_date
 
 
 class AbstractFinancialStatement(ABC):
@@ -865,3 +872,155 @@ class CombinedFinancialStatements:
 
         sparse_percentage = zero_or_nan_values / numeric_values if numeric_values > 0 else 0
         return sparse_percentage > 0.5
+
+class StockTicker:
+    def __init__(self, symbol: str):
+        if not symbol or not isinstance(symbol, str):
+            raise ValueError("Stock ticker must be a non-empty string")
+
+        symbol = symbol.upper().strip()
+        if not symbol.isalnum() or len(symbol) > 10:
+            raise ValueError("Stock ticker must be alphanumeric and max 10 characters")
+
+        self._symbol = symbol
+
+    @property
+    def symbol(self) -> str:
+        return self._symbol
+
+    def __str__(self) -> str:
+        return self._symbol
+
+    def __repr__(self) -> str:
+        return f"StockTicker('{self._symbol}')"
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, StockTicker):
+            return False
+        return self._symbol == other._symbol
+
+    def __hash__(self) -> int:
+        return hash(self._symbol)
+
+
+@dataclass(frozen=True)
+class PricePoint:
+    date: datetime
+    price: Decimal
+    market_reference_price: Decimal
+
+    def __post_init__(self):
+        if self.price <= 0:
+            raise ValueError("Price must be positive")
+        if self.market_reference_price <= 0:
+            raise ValueError("Market reference price must be positive")
+
+
+@dataclass
+class SignificantMove:
+    id: Optional[str]
+    ticker: StockTicker
+    occurred_at: datetime
+    pct_change: Decimal
+    catalyst: Optional[str] = None
+
+    def __post_init__(self):
+        if abs(self.pct_change) < Decimal('1.0'):
+            raise ValueError("Significant move must have at least 1% change")
+
+
+class StockPriceSeries:
+    def __init__(self, ticker: StockTicker, points: List[PricePoint]):
+        if not points:
+            raise ValueError("Stock price series must have at least one price point")
+
+        self._ticker = ticker
+        self._points = sorted(points, key=lambda p: p.date)
+
+    @property
+    def ticker(self) -> StockTicker:
+        return self._ticker
+
+    @property
+    def points(self) -> List[PricePoint]:
+        return self._points.copy()
+
+    def detect_significant_moves(self, threshold: Decimal) -> List[SignificantMove]:
+        if len(self._points) < 2:
+            return []
+
+        significant_moves = []
+
+        for i in range(1, len(self._points)):
+            current_point = self._points[i]
+            previous_point = self._points[i-1]
+
+            stock_pct_change = ((current_point.price - previous_point.price) / previous_point.price) * 100
+            market_pct_change = ((current_point.market_reference_price - previous_point.market_reference_price) / previous_point.market_reference_price) * 100
+
+            relative_move = abs(stock_pct_change - market_pct_change)
+
+            if relative_move >= threshold:
+                move = SignificantMove(
+                    id=None,
+                    ticker=self._ticker,
+                    occurred_at=current_point.date,
+                    pct_change=stock_pct_change,
+                    catalyst=None
+                )
+                significant_moves.append(move)
+
+        return significant_moves
+
+    def get_price_at_date(self, target_date: datetime) -> Optional[PricePoint]:
+        for point in self._points:
+            if point.date.date() == target_date.date():
+                return point
+        return None
+
+    def get_date_range(self) -> tuple[datetime, datetime]:
+        if not self._points:
+            raise ValueError("No price points available")
+        return self._points[0].date, self._points[-1].date
+
+
+class PriceRepository(Protocol):
+    @abstractmethod
+    def get_series(self, ticker: StockTicker, start_date: date, end_date: date) -> Optional[StockPriceSeries]:
+        pass
+
+    @abstractmethod
+    def add_many(self, points: List[PricePoint], ticker: StockTicker) -> None:
+        pass
+
+    @abstractmethod
+    def get_latest_date(self, ticker: StockTicker) -> Optional[date]:
+        pass
+
+
+class SignificantMoveRepository(Protocol):
+    @abstractmethod
+    def add(self, move: SignificantMove) -> None:
+        pass
+
+    @abstractmethod
+    def add_many(self, moves: List[SignificantMove]) -> None:
+        pass
+
+    @abstractmethod
+    def list_between(self, ticker: StockTicker, start_date: date, end_date: date) -> List[SignificantMove]:
+        pass
+
+    @abstractmethod
+    def update_catalyst(self, move_id: str, catalyst: str) -> None:
+        pass
+
+
+class MarketDataProvider(Protocol):
+    @abstractmethod
+    def fetch_prices(self, ticker: str, start_date: date, end_date: date) -> List[PricePoint]:
+        pass
+
+    @abstractmethod
+    def fetch_index_prices(self, index_symbol: str, start_date: date, end_date: date) -> List[PricePoint]:
+        pass

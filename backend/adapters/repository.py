@@ -4,17 +4,23 @@ import requests
 from dotenv import load_dotenv
 import backend.domain.model as model
 from backend.adapters.filing_mapper import FilingMapper
-from sec_api import XbrlApi
+from sec_api import XbrlApi, QueryApi
 import os
 import json
 import google.generativeai as genai
 import traceback
 import pandas as pd
 from typing import Optional, Iterable
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.orm import Session
-from backend.adapters.orm import CombinedFinancialStatementsORM
+from backend.adapters.orm import CombinedFinancialStatementsORM, StockPriceORM, SignificantMoveORM
 from typing import Protocol
+from datetime import date
+from decimal import Decimal
+from backend.domain import (
+    StockTicker, PricePoint, SignificantMove, StockPriceSeries,
+    PriceRepository, SignificantMoveRepository
+)
 
 
 load_dotenv()
@@ -22,6 +28,7 @@ load_dotenv()
 class SECFilingRepository():
     def __init__(self):
         self.headers = {"User-Agent": os.getenv("USER_AGENT")}
+        self.queryApi = QueryApi(os.getenv("SEC_API_KEY"))
 
     def get_cik_by_ticker(self, ticker):
         # TODO: Cache this
@@ -33,6 +40,53 @@ class SECFilingRepository():
                 cik = str(item['cik_str']).zfill(10)
                 return cik
         return None
+
+    def get_all_filings_in_period(self, start_date: date, end_date: date, form_type):
+
+        search_parameters = {
+        "query": "<PLACEHOLDER>", # will be set during runtime
+        "from": "0", # will be incremented by 50 during runtime
+        "size": "50",
+        "sort": [{ "filedAt": { "order": "desc" } }]
+        }
+
+        # open the file to store the filing URLs
+        log_file = open("filing_urls.csv", "a")
+
+        search_parameters["from"] = 0
+
+        form_type_query = f'formType:"{form_type}"'
+        date_range_query = f"filedAt:[{start_date} TO {end_date}]"
+        search_parameters["query"] = form_type_query + " AND " + date_range_query
+
+        print("Starting filing search for: ", search_parameters["query"])
+
+        # paginate through results by increasing "from" parameter
+        # until all results are fecthed and no more filings are returned
+        # uncomment line below to fetch all 10,000 filings per month
+        # for from_param in range(0, 9950, 50):
+        for from_param in range(0, 50, 50):
+            search_parameters["from"] = from_param
+
+            response = self.queryApi.get_filings(search_parameters)
+
+            # stop if no more filings are returned
+            if len(response["filings"]) == 0:
+                break
+
+            # for each filing, get the URL of the filing
+            # set in the dict key "linkToFilingDetails"
+            urls_list = list(
+                map(lambda x: x["linkToFilingDetails"], response["filings"])
+            )
+
+            # transform the list of URLs into a single string by
+            # joining all list elements, add a new-line character between each element
+            urls_string = "\n".join(urls_list) + "\n"
+
+            log_file.write(urls_string)
+
+        log_file.close()
 
     def get_filings(self, cik):
         submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
@@ -463,3 +517,204 @@ class PostgresCombinedFinancialStatementsRepository(CombinedFinancialStatementsR
 
         if orm_obj:
             self.session.delete(orm_obj)
+
+
+class PostgresPriceRepository(PriceRepository):
+    def __init__(self, session: Session):
+        self.session = session
+
+    def get_series(self, ticker: StockTicker, start_date: date, end_date: date) -> Optional[StockPriceSeries]:
+        stmt = select(StockPriceORM).where(
+            and_(
+                StockPriceORM.ticker == ticker.symbol,
+                StockPriceORM.date >= start_date,
+                StockPriceORM.date <= end_date
+            )
+        ).order_by(StockPriceORM.date)
+
+        results = self.session.execute(stmt).scalars().all()
+
+        if not results:
+            return None
+
+        price_points = []
+        for orm_obj in results:
+            price_point = PricePoint(
+                date=orm_obj.date,
+                price=Decimal(str(orm_obj.price)),
+                market_reference_price=Decimal(str(orm_obj.market_reference_price))
+            )
+            price_points.append(price_point)
+
+        return StockPriceSeries(ticker, price_points)
+
+    def add_many(self, points: list[PricePoint], ticker: StockTicker) -> None:
+        for point in points:
+            existing = self.session.execute(
+                select(StockPriceORM).where(
+                    and_(
+                        StockPriceORM.ticker == ticker.symbol,
+                        StockPriceORM.date == point.date
+                    )
+                )
+            ).scalar_one_or_none()
+
+            if not existing:
+                orm_obj = StockPriceORM(
+                    ticker=ticker.symbol,
+                    date=point.date,
+                    price=float(point.price),
+                    market_reference_price=float(point.market_reference_price)
+                )
+                self.session.add(orm_obj)
+
+        self.session.commit()
+
+    def get_latest_date(self, ticker: StockTicker) -> Optional[date]:
+        stmt = select(StockPriceORM.date).where(
+            StockPriceORM.ticker == ticker.symbol
+        ).order_by(StockPriceORM.date.desc()).limit(1)
+
+        result = self.session.execute(stmt).scalar_one_or_none()
+        return result.date() if result else None
+
+
+class PostgresSignificantMoveRepository(SignificantMoveRepository):
+    def __init__(self, session: Session):
+        self.session = session
+
+    def add(self, move: SignificantMove) -> None:
+        orm_obj = SignificantMoveORM(
+            ticker=move.ticker.symbol,
+            occurred_at=move.occurred_at,
+            pct_change=float(move.pct_change),
+            catalyst=move.catalyst
+        )
+        self.session.add(orm_obj)
+        self.session.commit()
+
+        move.id = str(orm_obj.id)
+
+    def add_many(self, moves: list[SignificantMove]) -> None:
+        for move in moves:
+            existing = self.session.execute(
+                select(SignificantMoveORM).where(
+                    and_(
+                        SignificantMoveORM.ticker == move.ticker.symbol,
+                        SignificantMoveORM.occurred_at == move.occurred_at
+                    )
+                )
+            ).scalar_one_or_none()
+
+            if not existing:
+                orm_obj = SignificantMoveORM(
+                    ticker=move.ticker.symbol,
+                    occurred_at=move.occurred_at,
+                    pct_change=float(move.pct_change),
+                    catalyst=move.catalyst
+                )
+                self.session.add(orm_obj)
+                move.id = str(orm_obj.id)
+
+        self.session.commit()
+
+    def list_between(self, ticker: StockTicker, start_date: date, end_date: date) -> list[SignificantMove]:
+        stmt = select(SignificantMoveORM).where(
+            and_(
+                SignificantMoveORM.ticker == ticker.symbol,
+                SignificantMoveORM.occurred_at >= start_date,
+                SignificantMoveORM.occurred_at <= end_date
+            )
+        ).order_by(SignificantMoveORM.occurred_at)
+
+        results = self.session.execute(stmt).scalars().all()
+
+        moves = []
+        for orm_obj in results:
+            move = SignificantMove(
+                id=str(orm_obj.id),
+                ticker=ticker,
+                occurred_at=orm_obj.occurred_at,
+                pct_change=Decimal(str(orm_obj.pct_change)),
+                catalyst=orm_obj.catalyst
+            )
+            moves.append(move)
+
+        return moves
+
+    def update_catalyst(self, move_id: str, catalyst: str) -> None:
+        stmt = select(SignificantMoveORM).where(SignificantMoveORM.id == move_id)
+        result = self.session.execute(stmt).scalar_one_or_none()
+
+        if result:
+            result.catalyst = catalyst
+            self.session.commit()
+
+
+class FakePriceRepository(PriceRepository):
+    def __init__(self):
+        self.price_data = {}
+
+    def get_series(self, ticker: StockTicker, start_date: date, end_date: date) -> Optional[StockPriceSeries]:
+        ticker_data = self.price_data.get(ticker.symbol, [])
+
+        filtered_points = [
+            point for point in ticker_data
+            if start_date <= point.date.date() <= end_date
+        ]
+
+        if not filtered_points:
+            return None
+
+        return StockPriceSeries(ticker, filtered_points)
+
+    def add_many(self, points: list[PricePoint], ticker: StockTicker) -> None:
+        if ticker.symbol not in self.price_data:
+            self.price_data[ticker.symbol] = []
+
+        existing_dates = {point.date.date() for point in self.price_data[ticker.symbol]}
+
+        for point in points:
+            if point.date.date() not in existing_dates:
+                self.price_data[ticker.symbol].append(point)
+
+        self.price_data[ticker.symbol].sort(key=lambda p: p.date)
+
+    def get_latest_date(self, ticker: StockTicker) -> Optional[date]:
+        ticker_data = self.price_data.get(ticker.symbol, [])
+        if not ticker_data:
+            return None
+        return max(point.date.date() for point in ticker_data)
+
+
+class FakeSignificantMoveRepository(SignificantMoveRepository):
+    def __init__(self):
+        self.moves = []
+        self.next_id = 1
+
+    def add(self, move: SignificantMove) -> None:
+        move.id = str(self.next_id)
+        self.next_id += 1
+        self.moves.append(move)
+
+    def add_many(self, moves: list[SignificantMove]) -> None:
+        for move in moves:
+            existing = any(
+                m.ticker == move.ticker and m.occurred_at == move.occurred_at
+                for m in self.moves
+            )
+            if not existing:
+                self.add(move)
+
+    def list_between(self, ticker: StockTicker, start_date: date, end_date: date) -> list[SignificantMove]:
+        return [
+            move for move in self.moves
+            if (move.ticker == ticker and
+                start_date <= move.occurred_at.date() <= end_date)
+        ]
+
+    def update_catalyst(self, move_id: str, catalyst: str) -> None:
+        for move in self.moves:
+            if move.id == move_id:
+                move.catalyst = catalyst
+                break

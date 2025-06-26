@@ -5,6 +5,7 @@ import requests
 from datetime import datetime, timedelta
 from typing import List, Dict, Set
 import os
+import re
 
 
 def find_unique_companies_with_recent_10q_filings(api_key: str = None) -> List[Dict[str, str]]:
@@ -304,3 +305,215 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
             uow.commit()
 
     return combined_statements
+
+
+def process_new_filings_from_csv(csv_path: str = "filing_urls.csv", uow_instance: uow.AbstractUnitOfWork = None) -> Dict[str, any]:
+    if uow_instance is None:
+        uow_instance = uow.SqlAlchemyUnitOfWork()
+
+    results = {
+        "processed": 0,
+        "updated": 0,
+        "errors": 0,
+        "details": []
+    }
+
+    if not os.path.exists(csv_path):
+        results["details"].append(f"CSV file not found: {csv_path}")
+        return results
+
+    with open(csv_path, 'r') as f:
+        urls = [line.strip() for line in f if line.strip()]
+
+    for url in urls:
+        try:
+            cik, accession_number, primary_document = _parse_sec_url(url)
+            if not cik:
+                results["details"].append(f"Could not parse CIK from URL: {url}")
+                continue
+
+            with uow_instance as uow:
+                ticker = _get_ticker_from_cik(cik, uow.sec_filings)
+                if not ticker:
+                    results["details"].append(f"Could not find ticker for CIK: {cik}")
+                    continue
+
+                existing_statements = uow.stmts.get(ticker, "10-K")
+
+                filing = model.Filing(cik, "10-K", "", accession_number, primary_document, True)
+                filing_data, cover_page = uow.sec_filings.get_filing_data(cik, accession_number, primary_document)
+
+                if not filing_data:
+                    results["details"].append(f"Could not fetch filing data for {ticker} ({cik})")
+                    results["errors"] += 1
+                    continue
+
+                filing.data = filing_data
+                filing.cover_page = cover_page
+
+                if existing_statements:
+                    new_filing_df = filing.income_statement.table if filing.income_statement else pd.DataFrame()
+
+                    if not new_filing_df.empty:
+                        existing_years = _extract_years_from_columns(existing_statements.df.columns)
+                        new_years = _extract_years_from_columns(new_filing_df.columns)
+
+                        if new_years and (not existing_years or max(new_years) > max(existing_years)):
+                            combined_df = _merge_dataframes(existing_statements.df, new_filing_df, uow)
+                            existing_statements.df = combined_df
+                            existing_statements.source_filings.append(filing)
+                            existing_statements.clean_dataframe()
+                            existing_statements.df = _apply_display_formatting(existing_statements.df)
+
+                            uow.stmts.delete(ticker, "10-K")
+                            uow.stmts.add(existing_statements)
+                            uow.commit()
+
+                            results["updated"] += 1
+                            results["details"].append(f"Updated {ticker} with newer data (years: {sorted(new_years)})")
+                        else:
+                            results["details"].append(f"No newer data found for {ticker} (existing: {sorted(existing_years) if existing_years else []}, new: {sorted(new_years) if new_years else []})")
+                    else:
+                        results["details"].append(f"No income statement data found for {ticker}")
+                else:
+                    new_statements = model.CombinedFinancialStatements(
+                        [filing.income_statement] if filing.income_statement else [],
+                        [filing],
+                        ticker,
+                        "10-K"
+                    )
+
+                    if not new_statements.df.empty:
+                        new_statements.clean_dataframe()
+                        new_statements.df = _apply_display_formatting(new_statements.df)
+
+                        uow.stmts.add(new_statements)
+                        uow.commit()
+
+                        results["updated"] += 1
+                        new_years = _extract_years_from_columns(new_statements.df.columns)
+                        results["details"].append(f"Created new statements for {ticker} (years: {sorted(new_years) if new_years else []})")
+                    else:
+                        results["details"].append(f"No data to create statements for {ticker}")
+
+                results["processed"] += 1
+
+        except Exception as e:
+            results["errors"] += 1
+            results["details"].append(f"Error processing URL {url}: {str(e)}")
+
+    return results
+
+
+def _parse_sec_url(url: str) -> tuple[str, str, str]:
+    pattern = r'https://www\.sec\.gov/Archives/edgar/data/(\d+)/(\d+)/([^/]+\.htm?)$'
+    match = re.match(pattern, url)
+
+    if match:
+        cik = match.group(1).zfill(10)
+        accession_number = match.group(2)
+        primary_document = match.group(3)
+        return cik, accession_number, primary_document
+
+    return None, None, None
+
+
+def _extract_years_from_columns(columns) -> List[int]:
+    years = []
+    for col in columns:
+        try:
+            if ':' in col:
+                year_str = col.split(':')[0].split('-')[0]
+                year = int(year_str)
+                if 1900 <= year <= 2100:
+                    years.append(year)
+        except (ValueError, IndexError):
+            continue
+    return list(set(years))
+
+
+def _get_ticker_from_cik(cik: str, sec_repo) -> str:
+    ticker_url = "https://www.sec.gov/files/company_tickers.json"
+    headers = {"User-Agent": os.getenv("USER_AGENT", "Your App Name")}
+
+    try:
+        response = requests.get(ticker_url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+
+        for item in data.values():
+            if str(item['cik_str']).zfill(10) == cik:
+                return item['ticker'].upper()
+    except Exception as e:
+        print(f"Error fetching ticker for CIK {cik}: {e}")
+
+    return None
+
+
+def _merge_dataframes(existing_df: pd.DataFrame, new_df: pd.DataFrame, uow) -> pd.DataFrame:
+    if existing_df.empty:
+        formatted_df = new_df.copy()
+        return _apply_formatting(formatted_df)
+    if new_df.empty:
+        return existing_df.copy()
+
+    result_df = existing_df.copy()
+
+    if uow.llm:
+        index_mapping = uow.llm.map_dataframes(existing_df, new_df)
+
+        mapped_df = new_df.copy()
+        new_index = []
+
+        for idx in new_df.index:
+            found = False
+            for base_idx, mapped_idx in index_mapping.items():
+                if idx == mapped_idx:
+                    new_index.append(base_idx)
+                    found = True
+                    break
+
+            if not found:
+                new_index.append(idx)
+
+        mapped_df.index = new_index
+
+        new_columns = [col for col in mapped_df.columns if col not in result_df.columns]
+        if new_columns:
+            for col in new_columns:
+                for idx in result_df.index:
+                    if idx in mapped_df.index:
+                        result_df.loc[idx, col] = mapped_df.loc[idx, col]
+    else:
+        new_columns = [col for col in new_df.columns if col not in result_df.columns]
+        if new_columns:
+            for col in new_columns:
+                for idx in result_df.index:
+                    if idx in new_df.index:
+                        result_df.loc[idx, col] = new_df.loc[idx, col]
+
+    return _apply_formatting(result_df)
+
+
+def _apply_formatting(df: pd.DataFrame) -> pd.DataFrame:
+    return _apply_display_formatting(df)
+
+
+def _apply_display_formatting(df: pd.DataFrame) -> pd.DataFrame:
+    formatted_df = df.copy()
+
+    for col in formatted_df.columns:
+        formatted_df[col] = formatted_df[col].apply(lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and abs(x) >= 1000 else x)
+
+    return formatted_df
+
+
+def _convert_to_millions(val):
+    try:
+        num = float(val)
+        if abs(num) >= 10_000:
+            return round(num / 1_000_000, 2)
+        else:
+            return num
+    except (ValueError, TypeError):
+        return val

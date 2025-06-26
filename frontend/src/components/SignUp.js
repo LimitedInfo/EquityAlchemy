@@ -1,10 +1,10 @@
 import React from 'react';
-import { SignIn, SignedIn, SignedOut } from '@clerk/clerk-react';
+import { SignUp as ClerkSignUp, SignedIn, SignedOut } from '@clerk/clerk-react';
 import { Navigate } from 'react-router-dom';
 
-function Login() {
+function SignUp() {
   return (
-    <div className="login-container" style={{
+    <div className="signup-container" style={{
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',
@@ -26,7 +26,7 @@ function Login() {
             fontWeight: '600',
             color: '#1f2937'
           }}>
-            Sign In to Your Account
+            Join Financial Data App
           </h2>
           <p style={{
             marginBottom: '40px',
@@ -34,16 +34,16 @@ function Login() {
             fontSize: '16px',
             lineHeight: '1.5'
           }}>
-            Welcome back! Sign in to access your financial data dashboard.
+            Create your account to get unlimited access to financial statements and premium features.
           </p>
           <div style={{
             display: 'flex',
             justifyContent: 'center',
             width: '100%'
           }}>
-            <SignIn
-              afterSignInUrl="/profile"
-              signUpUrl="/signup"
+            <ClerkSignUp
+              afterSignUpUrl="/profile"
+              signInUrl="/login"
               appearance={{
                 elements: {
                   formButtonPrimary: {
@@ -70,4 +70,4 @@ function Login() {
   );
 }
 
-export default Login;
+export default SignUp;

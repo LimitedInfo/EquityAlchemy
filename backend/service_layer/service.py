@@ -1,5 +1,5 @@
-import backend.domain.model as model
-import backend.service_layer.uow as uow
+from domain import model
+from service_layer import uow
 import pandas as pd
 import requests
 from datetime import datetime, timedelta

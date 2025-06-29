@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Any
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-import backend.adapters.repository as repository
-from backend.adapters.config import get_postgres_uri
+from adapters import repository
+from adapters.config import get_postgres_uri
 
 DEFAULT_SESSION_FACTORY = sessionmaker(
     bind=create_engine(

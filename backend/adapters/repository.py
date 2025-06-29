@@ -2,8 +2,8 @@ import abc
 import requests
 
 from dotenv import load_dotenv
-import backend.domain.model as model
-from backend.adapters.filing_mapper import FilingMapper
+from domain import model
+from adapters.filing_mapper import FilingMapper
 from sec_api import XbrlApi, QueryApi
 import os
 import json
@@ -13,11 +13,11 @@ import pandas as pd
 from typing import Optional, Iterable
 from sqlalchemy import select, and_
 from sqlalchemy.orm import Session
-from backend.adapters.orm import CombinedFinancialStatementsORM, StockPriceORM, SignificantMoveORM
+from adapters.orm import CombinedFinancialStatementsORM, StockPriceORM, SignificantMoveORM
 from typing import Protocol
 from datetime import date
 from decimal import Decimal
-from backend.domain import (
+from domain import (
     StockTicker, PricePoint, SignificantMove, StockPriceSeries,
     PriceRepository, SignificantMoveRepository
 )
@@ -31,9 +31,10 @@ class SECFilingRepository():
         self.queryApi = QueryApi(os.getenv("SEC_API_KEY"))
 
     def get_cik_by_ticker(self, ticker):
-        # TODO: Cache this
-        ticker_url = "https://www.sec.gov/files/company_tickers.json"
-        data = self._make_request(ticker_url, self.headers)
+        ticker_file_path = os.path.join(os.path.dirname(__file__), 'company_tickers.json')
+
+        with open(ticker_file_path, 'r') as f:
+            data = json.load(f)
 
         for item in data.values():
             if item['ticker'].lower() == ticker.lower():

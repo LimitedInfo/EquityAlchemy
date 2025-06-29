@@ -1,6 +1,6 @@
 from typing import Sequence, Optional
-from backend.domain.model import CombinedFinancialStatements
-from backend.service_layer.uow import AbstractUnitOfWork
+from domain.model import CombinedFinancialStatements
+from service_layer.uow import AbstractUnitOfWork
 
 
 def persist_statements(

@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import List
 import pandas as pd
 
-from backend.domain import PricePoint, MarketDataProvider
+from domain import PricePoint, MarketDataProvider
 
 
 class YFinanceMarketDataProvider(MarketDataProvider):

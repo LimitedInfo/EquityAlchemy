@@ -11,6 +11,9 @@ if (!PUBLISHABLE_KEY) {
   throw new Error("Missing Clerk Publishable Key");
 }
 
+console.log('Clerk key type:', PUBLISHABLE_KEY.startsWith('pk_live_') ? 'PRODUCTION' : 'DEVELOPMENT');
+console.log('Clerk key prefix:', PUBLISHABLE_KEY.substring(0, 8) + '...');
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>

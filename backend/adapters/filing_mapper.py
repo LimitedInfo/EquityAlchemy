@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional
-from backend.domain.model import CoverPage, Filing
+from domain.model import CoverPage, Filing
 
 
 class FilingMapper:

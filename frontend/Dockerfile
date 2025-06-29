@@ -27,6 +27,17 @@ RUN npm ci --include=dev
 # Copy application code
 COPY . .
 
+# Accept build args for environment variables
+ARG REACT_APP_API_URL
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
+ENV REACT_APP_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+
+# Debug: Print environment variables (without exposing sensitive data)
+RUN echo "Environment variables set:" && \
+    echo "REACT_APP_API_URL: $REACT_APP_API_URL" && \
+    echo "REACT_APP_CLERK_PUBLISHABLE_KEY is set: $([ -n "$REACT_APP_CLERK_PUBLISHABLE_KEY" ] && echo 'YES' || echo 'NO')"
+
 # Build application
 RUN npm run build
 

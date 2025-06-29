@@ -5,10 +5,10 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copy requirements file
-COPY requirements.txt .
+COPY requirements_prod.txt .
 
 # Install dependencies
-RUN pip install -r requirements.txt
+RUN pip install -r requirements_prod.txt
 
 # Copy the rest of the application
 COPY . .
@@ -17,4 +17,4 @@ COPY . .
 EXPOSE 8080
 
 # Simplest possible command for testing
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "entrypoints.backend:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -1,14 +1,14 @@
+import os
 from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Dict, Optional, List
-import backend.service_layer.service as service
-import backend.service_layer.uow as uow
+from service_layer import service
+from service_layer import uow
 import pandas as pd
 import traceback
-
 
 free_query_usage: Dict[str, int] = {}
 
@@ -22,16 +22,7 @@ class FinancialStatements(BaseModel):
     metrics: List[FinancialMetric]
     periods: List[str]
 
-class CORSHeaderMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        response = await call_next(request)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        return response
-
 app = FastAPI()
-app.add_middleware(CORSHeaderMiddleware)
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
@@ -49,7 +40,13 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://equityalchemy.ai",
+        "https://api.equityalchemy.ai",
+        "https://basic-sparkling-thunder-7964.fly.dev",  # deployed frontend
+        "http://localhost:3000",  # for local development
+        "http://localhost:8000"   # for local development
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],

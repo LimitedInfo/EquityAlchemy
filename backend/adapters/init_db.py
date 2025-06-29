@@ -1,6 +1,6 @@
 import os
 from adapters.orm import create_tables
-from backend.adapters.config import get_postgres_uri
+from adapters.config import get_postgres_uri
 from dotenv import load_dotenv
 
 load_dotenv()

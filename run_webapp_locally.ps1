@@ -4,7 +4,7 @@ Write-Host "Opening database proxy in new window..." -ForegroundColor Yellow
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "& {flyctl proxy 15432:5432 -a small-night-2462}"
 
 Write-Host "Opening backend server in new window..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "& {.\venv\Scripts\Activate.ps1; python -m uvicorn backend.entrypoints.backend:app --reload}"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "& {.\venv\Scripts\Activate.ps1; cd backend; python -m uvicorn entrypoints.backend:app --reload}"
 
 Write-Host "Opening frontend server in new window..." -ForegroundColor Yellow
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "& {cd .\frontend\; npm start}"

@@ -15,7 +15,6 @@ serve = ["gig", "iad"]
 
 [build.args]
 REACT_APP_API_URL = "https://backend-weathered-shadow-9057.fly.dev"
-VITE_CLERK_PUBLISHABLE_KEY = "$VITE_CLERK_PUBLISHABLE_KEY"
 
 [http_service]
   internal_port = 3000

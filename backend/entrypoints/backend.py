@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing import Dict, Optional, List
 from service_layer import service
 from service_layer import uow
+from service_layer import forecast
 import pandas as pd
 import traceback
 
@@ -21,6 +22,18 @@ class FinancialStatements(BaseModel):
     form_type: Optional[str] = None
     metrics: List[FinancialMetric]
     periods: List[str]
+
+class ForecastRequest(BaseModel):
+    forecast_years: int = 10
+
+class ForecastResponse(BaseModel):
+    ticker: str
+    form_type: str
+    forecasted_data: List[Dict]
+    lower_bound_data: List[Dict]
+    upper_bound_data: List[Dict]
+    forecast_periods: List[str]
+    metadata: Dict
 
 app = FastAPI()
 
@@ -165,6 +178,97 @@ async def get_income_statements(ticker: str, request: Request, form_type: Option
         traceback.print_exc()
         print("--------------------------------------------------")
         raise HTTPException(status_code=500, detail=f"Error fetching financial data for {ticker}: {str(e)}")
+
+@app.post("/api/financial/forecast/{ticker}")
+async def forecast_financial_data(ticker: str, request: Request, forecast_request: ForecastRequest, form_type: Optional[str] = None):
+    if not is_authenticated(request):
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required for forecasting features. Please sign in.",
+            headers={"X-Auth-Required": "true"}
+        )
+
+    try:
+        # Debug logging
+        print(f"=== FORECAST REQUEST DEBUG ===")
+        print(f"Ticker: {ticker}")
+        print(f"Form Type (query param): {form_type}")
+        print(f"Forecast Years: {forecast_request.forecast_years}")
+
+        with uow.SqlAlchemyUnitOfWork() as uow_instance:
+            print(f"Loading financial data for {ticker}...")
+            combined_financial_statements = service.get_consolidated_income_statements(
+                ticker, uow_instance, form_type=form_type
+            )
+
+            print(f"Financial statements loaded: {combined_financial_statements is not None}")
+            if combined_financial_statements:
+                metrics = combined_financial_statements.get_all_metrics()
+                periods = combined_financial_statements.get_all_periods()
+                print(f"Metrics found: {len(metrics) if metrics else 0}")
+                print(f"Periods found: {len(periods) if periods else 0}")
+                print(f"First few metrics: {metrics[:3] if metrics else 'None'}")
+                print(f"First few periods: {periods[:3] if periods else 'None'}")
+
+        if not combined_financial_statements:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No financial data found for {ticker} with form type {form_type}. Please load the financial data first."
+            )
+
+        metrics = combined_financial_statements.get_all_metrics()
+        if not metrics:
+            print(f"ERROR: No metrics found in financial statements")
+            raise HTTPException(
+                status_code=404,
+                detail=f"No financial metrics found for {ticker}. The data may be empty or malformed."
+            )
+
+        df = combined_financial_statements.table
+        print(f"DataFrame shape: {df.shape}")
+        print(f"DataFrame empty: {df.empty}")
+        print(f"DataFrame columns: {list(df.columns)}")
+
+        if df.empty:
+            print(f"ERROR: DataFrame is empty")
+            raise HTTPException(
+                status_code=404,
+                detail=f"No financial data table available for forecasting for {ticker}."
+            )
+
+        forecast_result = forecast.forecast_financial_data(df, forecast_request.forecast_years)
+
+        forecasted_data_dict = forecast_result.forecasted_data.reset_index().to_dict('records')
+        lower_bound_dict = forecast_result.lower_bound_data.reset_index().to_dict('records')
+        upper_bound_dict = forecast_result.upper_bound_data.reset_index().to_dict('records')
+
+        response_data = ForecastResponse(
+            ticker=ticker,
+            form_type=form_type,
+            forecasted_data=forecasted_data_dict,
+            lower_bound_data=lower_bound_dict,
+            upper_bound_data=upper_bound_dict,
+            forecast_periods=forecast_result.forecast_periods,
+            metadata=forecast_result.metadata
+        )
+
+        return JSONResponse(content=response_data.dict())
+
+    except HTTPException:
+        raise
+    except ImportError as e:
+        print(f"--- Import Error in forecast endpoint ---")
+        traceback.print_exc()
+        print("----------------------------------------")
+        raise HTTPException(
+            status_code=500,
+            detail="Forecasting service unavailable. Please ensure Facebook Prophet is installed."
+        )
+    except Exception as e:
+        print(f"--- Exception in /api/financial/forecast/{ticker} ---")
+        traceback.print_exc()
+        print("-----------------------------------------------------")
+        raise HTTPException(status_code=500, detail=f"Error generating forecast for {ticker}: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

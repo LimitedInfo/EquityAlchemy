@@ -42,6 +42,21 @@ class SECFilingRepository():
                 return cik
         return None
 
+    def get_ticker_by_cik(self, cik):
+        ticker_file_path = os.path.join(os.path.dirname(__file__), 'company_tickers.json')
+
+        with open(ticker_file_path, 'r') as f:
+            data = json.load(f)
+
+        cik_normalized = str(cik).zfill(10)
+        cik_unpadded = str(cik).lstrip('0') or '0'
+
+        for item in data.values():
+            item_cik = str(item['cik_str']).zfill(10)
+            if item_cik == cik_normalized or str(item['cik_str']) == cik_unpadded:
+                return item['ticker']
+        return None
+
     def get_all_filings_in_period(self, start_date: date, end_date: date, form_type):
 
         search_parameters = {

@@ -40,4 +40,17 @@ export const getIncomeStatements = async (ticker, formType = null) => {
   return api.get(url);
 };
 
+export const forecastFinancialData = async (ticker, formType = null, forecastYears = 10) => {
+  let url = `/api/financial/forecast/${ticker}`;
+  if (formType) {
+    url += `?form_type=${formType}`;
+  }
+
+  const requestBody = {
+    forecast_years: forecastYears
+  };
+
+  return api.post(url, requestBody);
+};
+
 export default api;

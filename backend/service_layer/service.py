@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Set
 import os
 import re
+import time
 
 
 def find_unique_companies_with_recent_10q_filings(api_key: str = None) -> List[Dict[str, str]]:
@@ -78,7 +79,7 @@ def find_unique_companies_with_recent_10q_filings(api_key: str = None) -> List[D
     return sorted(companies_list, key=lambda x: x["company_name"])
 
 
-def  get_company_by_ticker(ticker: str, uow_instance: uow.AbstractUnitOfWork) -> model.Company:
+def get_company_by_ticker(ticker: str, uow_instance: uow.AbstractUnitOfWork) -> model.Company:
     with uow_instance as uow:
         cik = uow.sec_filings.get_cik_by_ticker(ticker)
         if not cik:
@@ -326,6 +327,7 @@ def process_new_filings_from_csv(csv_path: str = "filing_urls.csv", uow_instance
         urls = [line.strip() for line in f if line.strip()]
 
     for url in urls:
+        time.sleep(1)
         try:
             cik, accession_number, primary_document = _parse_sec_url(url)
             if not cik:
@@ -333,7 +335,8 @@ def process_new_filings_from_csv(csv_path: str = "filing_urls.csv", uow_instance
                 continue
 
             with uow_instance as uow:
-                ticker = _get_ticker_from_cik(cik, uow.sec_filings)
+                ticker = uow.sec_filings.get_ticker_by_cik(cik)
+                print(ticker)
                 if not ticker:
                     results["details"].append(f"Could not find ticker for CIK: {cik}")
                     continue
@@ -434,7 +437,7 @@ def _extract_years_from_columns(columns) -> List[int]:
 
 def _get_ticker_from_cik(cik: str, sec_repo) -> str:
     ticker_url = "https://www.sec.gov/files/company_tickers.json"
-    headers = {"User-Agent": os.getenv("USER_AGENT", "Your App Name")}
+    headers = {"User-Agent": os.getenv("USER_AGENT", "EquityAlchemyAI/1.0 (marottaandrew1@gmail.com)")}
 
     try:
         response = requests.get(ticker_url, headers=headers)

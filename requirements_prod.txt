@@ -17,6 +17,9 @@ python-dotenv==1.0.1
 sec-api==1.0.32
 google-generativeai==0.8.5
 
+# Forecasting
+prophet==1.1.5
+
 # Testing (for development)
 pytest==8.3.5
 httpx==0.25.2  # for FastAPI test client

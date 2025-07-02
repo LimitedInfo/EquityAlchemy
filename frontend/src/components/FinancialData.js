@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getIncomeStatements, getFreeQueryStatus, forecastFinancialData } from '../services/api';
+import { getIncomeStatements, getFreeQueryStatus, forecastFinancialData, getSecFilingsUrl } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 
@@ -15,6 +15,7 @@ function FinancialData() {
   const [forecastLoading, setForecastLoading] = useState(false);
   const [forecastError, setForecastError] = useState('');
   const [showForecast, setShowForecast] = useState(false);
+  const [secFilingsUrl, setSecFilingsUrl] = useState('');
   const navigate = useNavigate();
   const { isSignedIn } = useAuth();
 
@@ -42,6 +43,13 @@ function FinancialData() {
     try {
       const response = await getIncomeStatements(ticker, formType || null);
       setFinancialData(response.data);
+
+      try {
+        const secResponse = await getSecFilingsUrl(ticker, formType || '10-K');
+        setSecFilingsUrl(secResponse.data.sec_filings_url);
+      } catch (secError) {
+        console.warn('Failed to fetch SEC filings URL:', secError);
+      }
 
       if (!isSignedIn && response.headers['x-free-query-used'] === 'true') {
         setShowLoginPrompt(true);
@@ -106,6 +114,78 @@ function FinancialData() {
     }
   };
 
+  const handleExportCsv = () => {
+    if (!financialData) {
+      setError('No financial data to export');
+      return;
+    }
+
+    try {
+      // Create CSV content with the same formatting as the table
+      let csvContent = 'Metric';
+
+      // Add headers (periods)
+      financialData.periods.forEach(period => {
+        csvContent += `,${period.split(':')[1] || period}`;
+      });
+      csvContent += '\n';
+
+      // Add data rows with formatting
+      financialData.metrics.forEach(metric => {
+        csvContent += `"${metric.name}"`;
+
+        financialData.periods.forEach(period => {
+          const value = metric.values[period];
+          let formattedValue = '-';
+
+          if (value !== undefined && value !== null) {
+            if (metric.name.includes('EPS') || metric.name.includes('Earnings Per Share')) {
+              // EPS formatting (2 decimal places)
+              formattedValue = new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              }).format(value);
+            } else if (metric.name.includes('Average Shares') || metric.name.includes('Shares')) {
+              // Shares formatting (no decimal places)
+              formattedValue = new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+              }).format(value);
+            } else {
+              // Regular currency formatting (no decimal places)
+              formattedValue = new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+              }).format(value);
+            }
+          }
+
+          csvContent += `,"${formattedValue}"`;
+        });
+        csvContent += '\n';
+      });
+
+      // Create and trigger download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${ticker}_${formType || '10-K'}_financial_data.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      setError(`Error exporting CSV: ${error.message}`);
+    }
+  };
+
   return (
     <div className="financial-container">
       <h2>Financial Data</h2>
@@ -159,8 +239,8 @@ function FinancialData() {
           <label>Ticker Symbol:</label>
           <input
             type="text"
-            value={ticker.toUpperCase()}
-            onChange={(e) => setTicker(e.target.value)}
+            value={ticker}
+            onChange={(e) => setTicker(e.target.value.toUpperCase())}
             required
           />
         </div>
@@ -202,6 +282,23 @@ function FinancialData() {
         <div className="financial-results">
           <h3>{financialData.ticker} Financial Statements</h3>
           {financialData.form_type && <p>Form Type: {financialData.form_type}</p>}
+
+          <div style={{ marginBottom: '15px' }}>
+            <button
+              onClick={handleExportCsv}
+              style={{
+                background: '#17a2b8',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              📄 Export to CSV
+            </button>
+          </div>
 
           <div className="financial-table-container">
             <table className="financial-table">
@@ -246,149 +343,26 @@ function FinancialData() {
               </tbody>
             </table>
           </div>
-{/*
-          <div className="forecast-section" style={{ marginTop: '20px' }}>
-            <button
-              onClick={handleForecast}
-              disabled={forecastLoading || !isSignedIn}
-              style={{
-                background: forecastLoading ? '#666' : '#28a745',
-                color: 'white',
-                border: 'none',
-                padding: '10px 20px',
-                borderRadius: '4px',
-                cursor: forecastLoading || !isSignedIn ? 'not-allowed' : 'pointer',
-                marginRight: '10px'
-              }}
-            >
-              {forecastLoading ? 'Generating Forecast...' : '📈 Generate 10-Year Forecast'}
-            </button>
 
-            {showForecast && (
-              <button
-                onClick={() => setShowForecast(!showForecast)}
-                style={{
-                  background: '#6c757d',
-                  color: 'white',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                {showForecast ? 'Hide Forecast' : 'Show Forecast'}
-              </button>
-            )}
-
-            {!isSignedIn && (
-              <p style={{ color: '#ffc107', fontSize: '12px', marginTop: '5px' }}>
-                Sign in to access forecasting features
+          {secFilingsUrl && (
+            <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#3A3F4B', borderRadius: '5px', textAlign: 'center', border: '1px solidrgb(75, 130, 185)' }}>
+              <p style={{ margin: '0', color: '#F2F2F2' }}>
+                Does something look off? Please check{' '}
+                <a
+                  href={secFilingsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#C8C8C8', textDecoration: 'underline', fontWeight: '500' }}
+                >
+                  here
+                </a>
+                {' '}for the SEC filings.
               </p>
-            )}
-          </div>
-
-          {forecastError && (
-            <div className="error" style={{ marginTop: '10px', color: '#dc3545' }}>
-              {forecastError}
             </div>
           )}
-
-          {forecastData && showForecast && (
-            <div className="forecast-results" style={{ marginTop: '20px' }}>
-              <h4>📊 10-Year Financial Forecast</h4>
-              <p style={{ fontSize: '12px', color: '#888', marginBottom: '15px' }}>
-                Forecast generated using Facebook Prophet. Historical data: {forecastData.metadata?.original_periods || 'N/A'} periods,
-                Success rate: {forecastData.metadata?.success_rate?.toFixed(1) || 'N/A'}%
-              </p>
-
-              <div className="financial-table-container">
-                <table className="financial-table">
-                  <thead>
-                    <tr>
-                      <th>Metric</th>
-                      {financialData.periods.map(period => (
-                        <th key={period} style={{ background: '#f8f9fa' }}>
-                          {period.split(':')[1] || period}
-                        </th>
-                      ))}
-                      {forecastData.forecast_periods?.map(period => (
-                        <th key={period} style={{ background: '#e3f2fd', color: '#1976d2' }}>
-                          {period} 📈
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {financialData.metrics.map(metric => (
-                      <tr key={metric.name}>
-                        <td>{metric.name}</td>
-                        {financialData.periods.map(period => (
-                          <td key={`${metric.name}-${period}`} style={{ background: '#f8f9fa' }}>
-                            {metric.values[period] !== undefined
-                              ? metric.name.includes('EPS') || metric.name.includes('Earnings Per Share')
-                                ? new Intl.NumberFormat('en-US', {
-                                    style: 'currency',
-                                    currency: 'USD',
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                  }).format(metric.values[period])
-                                : metric.name.includes('Average Shares') || metric.name.includes('Shares')
-                                  ? new Intl.NumberFormat('en-US', {
-                                      minimumFractionDigits: 0,
-                                      maximumFractionDigits: 0
-                                    }).format(metric.values[period])
-                                  : new Intl.NumberFormat('en-US', {
-                                      style: 'currency',
-                                      currency: 'USD',
-                                      minimumFractionDigits: 0,
-                                      maximumFractionDigits: 0
-                                    }).format(metric.values[period])
-                              : '-'}
-                          </td>
-                        ))}
-                        {forecastData.forecast_periods?.map(period => {
-                          const forecastValue = forecastData.forecasted_data?.find(row => row.Metric === metric.name)?.[period];
-                          return (
-                            <td key={`${metric.name}-forecast-${period}`} style={{ background: '#e3f2fd', fontStyle: 'italic' }}>
-                              {forecastValue !== undefined && forecastValue !== null
-                                ? metric.name.includes('EPS') || metric.name.includes('Earnings Per Share')
-                                  ? new Intl.NumberFormat('en-US', {
-                                      style: 'currency',
-                                      currency: 'USD',
-                                      minimumFractionDigits: 2,
-                                      maximumFractionDigits: 2
-                                    }).format(forecastValue)
-                                  : metric.name.includes('Average Shares') || metric.name.includes('Shares')
-                                    ? new Intl.NumberFormat('en-US', {
-                                        minimumFractionDigits: 0,
-                                        maximumFractionDigits: 0
-                                      }).format(forecastValue)
-                                    : new Intl.NumberFormat('en-US', {
-                                        style: 'currency',
-                                        currency: 'USD',
-                                        minimumFractionDigits: 0,
-                                        maximumFractionDigits: 0
-                                      }).format(forecastValue)
-                                : '-'}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div style={{ marginTop: '10px', fontSize: '11px', color: '#666' }}>
-                <p>💡 <strong>Forecast Legend:</strong></p>
-                <p>• Blue columns (📈) represent AI-generated forecasts based on historical trends</p>
-                <p>• Forecasts are estimates and should not be used as investment advice</p>
-                <p>• Model: Facebook Prophet with {forecastData.metadata?.is_quarterly ? 'quarterly' : 'annual'} data detection</p>
-              </div>
-            </div>
-          )} */}
         </div>
       )}
+
       <p><em>Units displayed in millions where applicable</em></p>
     </div>
   );

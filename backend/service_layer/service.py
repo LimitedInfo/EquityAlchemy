@@ -207,8 +207,8 @@ def get_sec_filings_url(ticker: str = None, cik: str = None, form_type: str = '1
         cik = uow_instance.sec_filings.get_cik_by_ticker(ticker)
     return f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={form_type}&dateb=&owner=include&count=40"
 
-def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUnitOfWork, form_type: str = None, use_database: bool = True) -> model.CombinedFinancialStatements:
-    if use_database:
+def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUnitOfWork, form_type: str = None, retrieve_from_database: bool = True, overwrite_database: bool = False) -> model.CombinedFinancialStatements:
+    if retrieve_from_database:
         with uow_instance as uow:
             saved_statements = uow.stmts.get(ticker, form_type)
 
@@ -304,12 +304,18 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
 
     combined_statements.df = combined_statements.df[sorted(combined_statements.df.columns, key=lambda x: x.split(':')[0])]
 
-    if use_database:
+    combined_statements.sec_filings_url = get_sec_filings_url(ticker=ticker, form_type=form_type, uow_instance=uow_instance)
+
+    if overwrite_database:
+        with uow_instance as uow:
+            uow.stmts.delete(ticker, form_type)
+            uow.stmts.add(combined_statements)
+            uow.commit()
+    elif retrieve_from_database:
         with uow_instance as uow:
             uow.stmts.add(combined_statements)
             uow.commit()
 
-    combined_statements.sec_filings_url = get_sec_filings_url(ticker=ticker, form_type=form_type, uow_instance=uow_instance)
     return combined_statements
 
 

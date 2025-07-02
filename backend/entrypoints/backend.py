@@ -126,7 +126,7 @@ async def get_income_statements(ticker: str, request: Request, form_type: Option
 
     try:
         with uow.SqlAlchemyUnitOfWork() as uow_instance:
-            combined_financial_statements = service.get_consolidated_income_statements(ticker, uow_instance, form_type=form_type)
+            combined_financial_statements = service.get_consolidated_income_statements(ticker, uow_instance, form_type=form_type, retrieve_from_database=True, overwrite_database=False)
 
         metrics = []
         metric_names = combined_financial_statements.get_all_metrics()
@@ -269,6 +269,20 @@ async def forecast_financial_data(ticker: str, request: Request, forecast_reques
         traceback.print_exc()
         print("-----------------------------------------------------")
         raise HTTPException(status_code=500, detail=f"Error generating forecast for {ticker}: {str(e)}")
+
+@app.get("/api/financial/sec-filings-url/{ticker}")
+async def get_sec_filings_url(ticker: str, form_type: Optional[str] = "10-K"):
+    try:
+        with uow.SqlAlchemyUnitOfWork() as uow_instance:
+            sec_url = service.get_sec_filings_url(ticker=ticker, form_type=form_type, uow_instance=uow_instance)
+
+        return {"ticker": ticker, "form_type": form_type, "sec_filings_url": sec_url}
+
+    except Exception as e:
+        print(f"--- Exception in /api/financial/sec-filings-url/{ticker} ---")
+        traceback.print_exc()
+        print("-------------------------------------------------------")
+        raise HTTPException(status_code=500, detail=f"Error getting SEC filings URL for {ticker}: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

@@ -53,4 +53,12 @@ export const forecastFinancialData = async (ticker, formType = null, forecastYea
   return api.post(url, requestBody);
 };
 
+export const getSecFilingsUrl = async (ticker, formType = "10-K") => {
+  let url = `/api/financial/sec-filings-url/${ticker}`;
+  if (formType) {
+    url += `?form_type=${formType}`;
+  }
+  return api.get(url);
+};
+
 export default api;

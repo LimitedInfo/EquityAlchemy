@@ -577,6 +577,8 @@ class CombinedFinancialStatements:
         self.ticker = ticker
         self.form_type = form_type
         self.df = self._combine_statements()
+        self.sec_filings_url = None
+        self.has_more_than_one_continuous_period = None
 
     def _combine_statements(self) -> pd.DataFrame:
         if not self.financial_statements:
@@ -770,12 +772,13 @@ class CombinedFinancialStatements:
         self.df = self.df.map(self.convert_to_millions)
         self.df = self.df.loc[[not self.is_sparse_row(row) for _, row in self.df.iterrows()]]
         self.df = self.df.loc[:, [not self.is_sparse_column(self.df[col]) for col in self.df.columns]]
-        self.df = self.keep_longest_continuous_period()
+        self.has_more_than_one_continuous_period = self.has_more_than_one_continuous_period_check()
+        print(self.has_more_than_one_continuous_period)
         return self.df
 
-    def keep_longest_continuous_period(self) -> pd.DataFrame:
+    def has_more_than_one_continuous_period_check(self) -> bool:
         if self.df.empty or len(self.df.columns) == 0:
-            return self.df
+            return False
 
         date_columns = []
         for col in self.df.columns:
@@ -788,7 +791,7 @@ class CombinedFinancialStatements:
                 continue
 
         if not date_columns:
-            return self.df
+            return False
 
         date_columns.sort(key=lambda x: x[1])
 
@@ -817,9 +820,9 @@ class CombinedFinancialStatements:
 
         columns_to_keep = [col_info[0] for col_info in longest_period]
 
-        self.df = self.df[columns_to_keep]
+        # self.df = self.df[columns_to_keep]
 
-        return self.df
+        return len(continuous_periods) > 1
 
     def convert_to_millions(self, val):
         try:

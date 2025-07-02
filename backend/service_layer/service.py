@@ -202,6 +202,10 @@ def load_data(filing: model.Filing, uow_instance: uow.AbstractUnitOfWork) -> mod
     filing.cover_page = cover_page
     return filing
 
+def get_sec_filings_url(ticker: str = None, cik: str = None, form_type: str = '10-K', uow_instance: uow.AbstractUnitOfWork = None) -> str:
+    if not cik:
+        cik = uow_instance.sec_filings.get_cik_by_ticker(ticker)
+    return f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={form_type}&dateb=&owner=include&count=40"
 
 def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUnitOfWork, form_type: str = None, use_database: bool = True) -> model.CombinedFinancialStatements:
     if use_database:
@@ -305,6 +309,7 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
             uow.stmts.add(combined_statements)
             uow.commit()
 
+    combined_statements.sec_filings_url = get_sec_filings_url(ticker=ticker, form_type=form_type, uow_instance=uow_instance)
     return combined_statements
 
 

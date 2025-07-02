@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, func, create_engine, Text, Numeric, Index
+from sqlalchemy import Column, String, DateTime, func, create_engine, Text, Numeric, Index, Boolean
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.types import TypeDecorator, CHAR
@@ -88,6 +88,8 @@ class CombinedFinancialStatementsORM(Base):
     data = Column(JSONType, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    has_more_than_one_continuous_period = Column(Boolean, nullable=True)
+    sec_filings_url = Column(String, nullable=True)
 
     __table_args__ = (
         {"schema": None},  # Don't use schema for SQLite compatibility

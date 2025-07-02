@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://backend-weathered-shadow-9057.fly.dev';
+const API_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 const api = axios.create({
   baseURL: API_URL,

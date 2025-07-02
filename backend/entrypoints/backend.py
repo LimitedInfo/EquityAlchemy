@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from typing import Dict, Optional, List
 from service_layer import service
 from service_layer import uow
-from service_layer import forecast
+# from service_layer import forecast
 import pandas as pd
 import traceback
 

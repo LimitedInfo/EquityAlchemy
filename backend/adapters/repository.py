@@ -475,12 +475,28 @@ class PostgresCombinedFinancialStatementsRepository(CombinedFinancialStatementsR
         self.session = session
 
     def _serialize(self, stmt: model.CombinedFinancialStatements) -> dict:
-        json_str = stmt.df.to_json(orient="split", date_format="iso")
-        return {
-            "ticker": stmt.ticker,
-            "form_type": stmt.form_type,
-            "data": json.loads(json_str)
-        }
+        result = {}
+
+        for attr_name, attr_value in vars(stmt).items():
+            if attr_name.startswith('_'):
+                continue
+
+            if attr_name == 'df':
+                json_str = attr_value.to_json(orient="split", date_format="iso")
+                result['data'] = json.loads(json_str)
+            elif attr_name in ['financial_statements', 'source_filings']:
+                continue
+            else:
+                try:
+                    json.dumps(attr_value)
+                    result[attr_name] = attr_value
+                except (TypeError, ValueError):
+                    result[attr_name] = str(attr_value) if attr_value is not None else None
+
+        if not hasattr(stmt, 'sec_filings_url'):
+            result['sec_filings_url'] = None
+
+        return result
 
     def _deserialize_to_domain(self, orm_obj: CombinedFinancialStatementsORM) -> model.CombinedFinancialStatements:
         from io import StringIO

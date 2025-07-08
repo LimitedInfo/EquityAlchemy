@@ -336,7 +336,13 @@ class Company:
         elif form_type == '10-Q':
             process_count = 3
 
-        skip_count = Company.get_skip_amount(filings_list[0], form_type)
+        first_filing_with_data = next((filing for filing in filings_list if filing.income_statement and filing.income_statement.table.columns is not None), filings_list[0])
+        print(len(first_filing_with_data.income_statement.table.columns))
+        if len(first_filing_with_data.income_statement.table.columns) <= 0:
+            print('no data found in first filing, skipping...')
+            return []
+
+        skip_count = Company.get_skip_amount(first_filing_with_data, form_type)
 
 
         if process_count <= 0:
@@ -429,7 +435,7 @@ class IncomeStatement(AbstractFinancialStatement):
                     entries = [entries]
                 # at some point to implement segment data we can make a change here.
                 for entry in entries:
-                    if 'segment' in entry or 'value' not in entry:
+                    if 'segment' in entry or 'value' not in entry or '<div' in entry:
                         continue
 
                     period_data = entry.get('period', {})
@@ -467,8 +473,8 @@ class IncomeStatement(AbstractFinancialStatement):
         df = pd.DataFrame(rows)
 
         if not df.empty:
-            df['start_date'] = pd.to_datetime(df['start_date'])
-            df['end_date'] = pd.to_datetime(df['end_date'])
+            df['start_date'] = pd.to_datetime(df['start_date'], format='ISO8601')
+            df['end_date'] = pd.to_datetime(df['end_date'], format='ISO8601')
 
         return df
 
@@ -481,7 +487,10 @@ class IncomeStatement(AbstractFinancialStatement):
         else:
             return pd.DataFrame()
 
-        if 'OperatingCashFlow' in pivoted_df.index and 'CapitalExpenditures' in pivoted_df.index:
+        if (not pivoted_df.empty and
+            len(pivoted_df.columns) > 0 and
+            'OperatingCashFlow' in pivoted_df.index and
+            'CapitalExpenditures' in pivoted_df.index):
             pivoted_df.loc['FreeCashFlow'] = pivoted_df.loc['OperatingCashFlow'] - abs(pivoted_df.loc['CapitalExpenditures'])
 
         return pivoted_df
@@ -495,6 +504,9 @@ class IncomeStatement(AbstractFinancialStatement):
              self.df['period_length'] = (self.df['end_date'] - self.df['start_date']).dt.days
 
         annual_data = self.df[(self.df['period_length'] > 350) & (self.df['period_length'] < 380)].copy()
+        if annual_data.empty:
+            print('no annual data found, could be that period is not annual')
+            return pd.DataFrame()
 
         if not include_segment_data:
             annual_data = annual_data[annual_data['segment_value'].isnull()]
@@ -641,8 +653,8 @@ class CombinedFinancialStatements:
         periods = []
         for col in self.df.columns:
             start_str, end_str = col.split(':')
-            start_date = pd.to_datetime(start_str)
-            end_date = pd.to_datetime(end_str)
+            start_date = pd.to_datetime(start_str, format='ISO8601')
+            end_date = pd.to_datetime(end_str, format='ISO8601')
             periods.append((start_date, end_date))
 
         periods.sort(key=lambda x: x[0])
@@ -712,8 +724,8 @@ class CombinedFinancialStatements:
 
         for col in self.df.columns:
             start_str, end_str = col.split(':')
-            start_date = pd.to_datetime(start_str)
-            end_date = pd.to_datetime(end_str)
+            start_date = pd.to_datetime(start_str, format='ISO8601')
+            end_date = pd.to_datetime(end_str, format='ISO8601')
             period_days = (end_date - start_date).days
 
             if 350 < period_days < 380:
@@ -723,14 +735,14 @@ class CombinedFinancialStatements:
 
         for annual_col in annual_columns:
             annual_start_str, annual_end_str = annual_col.split(':')
-            annual_start = pd.to_datetime(annual_start_str)
-            annual_end = pd.to_datetime(annual_end_str)
+            annual_start = pd.to_datetime(annual_start_str, format='ISO8601')
+            annual_end = pd.to_datetime(annual_end_str, format='ISO8601')
 
             quarters_in_annual = []
             for q_col in quarterly_columns:
                 q_start_str, q_end_str = q_col.split(':')
-                q_start = pd.to_datetime(q_start_str)
-                q_end = pd.to_datetime(q_end_str)
+                q_start = pd.to_datetime(q_start_str, format='ISO8601')
+                q_end = pd.to_datetime(q_end_str, format='ISO8601')
 
                 if q_start >= annual_start and q_end <= annual_end:
                     quarters_in_annual.append(q_col)
@@ -739,7 +751,7 @@ class CombinedFinancialStatements:
                 quarter_dates = []
                 for q_col in quarters_in_annual:
                     q_start_str, q_end_str = q_col.split(':')
-                    quarter_dates.append((pd.to_datetime(q_start_str), pd.to_datetime(q_end_str)))
+                    quarter_dates.append((pd.to_datetime(q_start_str, format='ISO8601'), pd.to_datetime(q_end_str, format='ISO8601')))
 
                 quarter_dates.sort(key=lambda x: x[0])
 
@@ -784,8 +796,8 @@ class CombinedFinancialStatements:
         for col in self.df.columns:
             try:
                 start_str, end_str = col.split(':')
-                start_date = pd.to_datetime(start_str)
-                end_date = pd.to_datetime(end_str)
+                start_date = pd.to_datetime(start_str, format='ISO8601')
+                end_date = pd.to_datetime(end_str, format='ISO8601')
                 date_columns.append((col, start_date, end_date))
             except:
                 continue
@@ -829,8 +841,8 @@ class CombinedFinancialStatements:
             # Check if it's a numeric value
             num = float(val)
 
-            # Only convert to millions if number is at least 100,000
-            if abs(num) >= 10_000:
+            # Only convert to millions if number is at least 1,000
+            if abs(num) >= 1_000:
                 return round(num / 1_000_000, 2)
             else:
                 return num

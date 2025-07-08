@@ -187,6 +187,9 @@ def join_financial_statements_with_mapping(financial_statements: list[pd.DataFra
                 for col in new_columns:
                     for idx in result_df.index:
                         if idx in mapped_df.index:
+                            if hasattr(mapped_df.loc[idx, col], '__len__') and len(mapped_df.loc[idx, col]) > 1:
+                                print('indexer found more than one value for the same index, skipping...')
+                                continue
                             result_df.loc[idx, col] = mapped_df.loc[idx, col]
 
     return result_df
@@ -198,6 +201,8 @@ def load_data(filing: model.Filing, uow_instance: uow.AbstractUnitOfWork) -> mod
         filing.accession_number,
         filing.primary_document
     )
+    if not filing_data:
+        return None
     filing.data = filing_data
     filing.cover_page = cover_page
     return filing
@@ -220,6 +225,11 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
 
     if form_type == '10-Q':
         quarterly_filings_to_load = company.get_filings_by_type('10-Q')
+
+        if not quarterly_filings_to_load:
+            print('no 10-Q filings found')
+            return None
+
         # get data for the first filing so we can get the number of years covered.
         load_data(quarterly_filings_to_load[0], uow_instance)
         quarterly_filings_to_load = company.select_filings_with_processing_pattern(quarterly_filings_to_load, '10-Q')
@@ -248,21 +258,35 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
         annual_filings_to_load = filtered_annual_filings
 
     elif form_type == '10-K':
-            annual_filings_to_load = company.get_filings_by_type('10-K')
-            load_data(annual_filings_to_load[0], uow_instance)
-            annual_filings_to_load = company.select_filings_with_processing_pattern(annual_filings_to_load, '10-K')
+        annual_filings_to_load = company.get_filings_by_type('10-K')
 
-            for filing in annual_filings_to_load:
-                load_data(filing, uow_instance)
+        if not annual_filings_to_load:
+            print('no 10-K filings found')
+            return None
 
-                filing_url = uow_instance.sec_filings.get_filing_url(
-                    filing.cik,
-                    filing.accession_number,
-                    filing.primary_document
-                )
-                filing.filing_url = filing_url
+        data_found = False
+        for filing in annual_filings_to_load:
+            load_data(filing, uow_instance)
+            if filing.data:
+                data_found = True
+                break
 
-            annual_filings_to_load = [filing for filing in annual_filings_to_load if filing.data and len(filing.data) > 3]
+        if not data_found:
+            return None
+
+        annual_filings_to_load = company.select_filings_with_processing_pattern(annual_filings_to_load, '10-K')
+
+        for filing in annual_filings_to_load:
+            load_data(filing, uow_instance)
+
+            filing_url = uow_instance.sec_filings.get_filing_url(
+                filing.cik,
+                filing.accession_number,
+                filing.primary_document
+            )
+            filing.filing_url = filing_url
+
+        annual_filings_to_load = [filing for filing in annual_filings_to_load if filing.data and len(filing.data) > 3]
 
     else:
         raise ValueError(f"Invalid form type: {form_type}")

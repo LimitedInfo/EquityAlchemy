@@ -81,7 +81,9 @@ class SECFilingRepository():
         # until all results are fecthed and no more filings are returned
         # uncomment line below to fetch all 10,000 filings per month
         # for from_param in range(0, 9950, 50):
-        for from_param in range(0, 50, 50):
+        url_strings = []
+        cik_list = []
+        for from_param in range(0, 100000, 50):
             search_parameters["from"] = from_param
 
             response = self.queryApi.get_filings(search_parameters)
@@ -100,9 +102,15 @@ class SECFilingRepository():
             # joining all list elements, add a new-line character between each element
             urls_string = "\n".join(urls_list) + "\n"
 
-            log_file.write(urls_string)
+            for url in urls_list:
+                cik = url.split('/data/')[1].split('/')[0]
+                cik_list.append(cik)
 
+            url_strings.append(urls_string)
+
+        log_file.write("\n".join(url_strings))
         log_file.close()
+        return url_strings, cik_list
 
     def get_filings(self, cik):
         submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"

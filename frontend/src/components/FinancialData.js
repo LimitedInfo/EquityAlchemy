@@ -193,7 +193,7 @@ function FinancialData() {
       {!isSignedIn && freeQueryStatus && (
         <div className="free-query-info" style={{
           background: 'rgb(14, 13, 13)',
-          border: '1px solid rgb(35, 184, 207)',
+          border: '1px solid rgb(128, 223, 141)',
           padding: '10px',
           borderRadius: '5px',
           marginBottom: '20px',
@@ -210,7 +210,7 @@ function FinancialData() {
       {showLoginPrompt && (
         <div className="login-prompt" style={{
           background: 'rgb(14, 13, 13)',
-          border: '1px solid rgb(35, 184, 207)',
+          border: '1px solid rgb(128, 223, 141)',
           padding: '15px',
           borderRadius: '5px',
           marginBottom: '20px',
@@ -343,7 +343,7 @@ function FinancialData() {
               </tbody>
             </table>
           </div>
-
+          <p><em>Units displayed in millions where applicable</em></p>
           {secFilingsUrl && (
             <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#3A3F4B', borderRadius: '5px', textAlign: 'center', border: '1px solidrgb(75, 130, 185)' }}>
               <p style={{ margin: '0', color: '#F2F2F2' }}>
@@ -363,7 +363,7 @@ function FinancialData() {
         </div>
       )}
 
-      <p><em>Units displayed in millions where applicable</em></p>
+      <p style={{ marginTop: '15px', padding: '10px', borderRadius: '5px', textAlign: 'center', border: '1px solidrgb(75, 130, 185)' }}> <em> By using this service, you excempt us the provider of data, from any liability for any errors or omissions in the data.</em></p>
     </div>
   );
 }

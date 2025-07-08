@@ -2,114 +2,119 @@ import asyncio
 import websockets
 import json
 import os
-import logging
-from typing import Set
-import signal
 import sys
+import os
+os.chdir('../backend')
 
 from service_layer import service, uow
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+API_KEY = os.getenv("SEC_API_KEY")
+SERVER_URL = "wss://stream.sec-api.io"
+WS_ENDPOINT = SERVER_URL + "?apiKey=" + API_KEY
 
-class FilingListener:
-    def __init__(self):
-        self.api_key = os.getenv("SEC_API_KEY")
-        self.server_url = "wss://stream.sec-api.io"
-        self.ws_endpoint = f"{self.server_url}?apiKey={self.api_key}"
-        self.background_tasks: Set[asyncio.Task] = set()
-        self.running = True
+async def process_10k_filing(filing_data):
+    """Process a 10-K filing in the background"""
+    try:
 
-    async def process_filing(self, filing_data: dict):
+
+                # Create UoW instance
+        uow_instance = uow.SqlAlchemyUnitOfWork()
+
+        # You'll need to map CIK to ticker - this is a simplified example
+        # In practice, you might need a CIK-to-ticker mapping service
+        with uow_instance as uow_sqlalchemy:
+                ticker = uow_sqlalchemy.sec_filings.get_ticker_by_cik(filing_data['cik'])
+
+        print(f"🔄 Processing 10-K filing for ticker: {ticker}")
+
+        if not ticker:
+            print(f"⚠️  No ticker found for CIK: {filing_data['cik']}")
+            return
+
+        # Process the filing
+        result = service.get_consolidated_income_statements(
+            ticker=ticker,
+            uow_instance=uow_instance,
+            form_type="10-K",
+            retrieve_from_database=False,
+            overwrite_database=True
+        )
+
+        print(f"✅ Successfully processed 10-K for {ticker}")
+        print(f"   Statements count: {len(result.statements) if result.statements else 0}")
+
+    except Exception as e:
+        print(f"❌ Error processing 10-K filing: {e}")
+
+async def send_ping(websocket):
+    while True:
         try:
-            logger.info(f"Processing {filing_data['formType']} filing for CIK: {filing_data['cik']}")
+            pong_waiter = await websocket.ping()
+            await asyncio.wait_for(pong_waiter, timeout=5)
+            await asyncio.sleep(30)
+        except Exception as e:
+            print(f"An error occurred while sending ping: {e}")
+            await websocket.close()
+            return
 
-            ticker = filing_data.get('ticker')
-            if not ticker:
-                logger.warning(f"No ticker found for CIK: {filing_data['cik']}")
-                return
+async def websocket_client():
+    retry_counter = 0
+    max_retries = 5
+    ping_task = None
+    background_tasks = set()  # Keep track of background tasks
 
-            uow_instance = uow.SqlAlchemyUnitOfWork()
+    while retry_counter < max_retries:
+        try:
+            async with websockets.connect(WS_ENDPOINT) as websocket:
+                print("✅ Connected to:", SERVER_URL)
+                retry_counter = 0
 
-            result = service.get_consolidated_income_statements(
-                ticker=ticker,
-                uow_instance=uow_instance,
-                form_type=filing_data['formType'],
-                retrieve_from_database=False,
-                overwrite_database=True
-            )
+                # Start the ping/pong keep-alive routine
+                ping_task = asyncio.create_task(send_ping(websocket))
 
-            logger.info(f"Successfully processed {filing_data['formType']} for {ticker}")
-            logger.info(f"Statements count: {len(result.statements) if result.statements else 0}")
+                # Start the message-receiving loop
+                while True:
+                    message = await websocket.recv()
+                    filings = json.loads(message)
+
+                    for filing in filings:
+                        print(f"📄 {filing['accessionNo']} {filing['formType']} {filing['filedAt']} CIK:{filing['cik']}")
+
+                        # Only process 10-K filings
+                        if filing['formType'] == '10-K':
+                            print(f"🎯 Found 10-K filing! Starting background processing...")
+
+                            # Create background task for processing
+                            task = asyncio.create_task(process_10k_filing(filing))
+                            background_tasks.add(task)
+
+                            # Clean up completed tasks to prevent memory leaks
+                            task.add_done_callback(background_tasks.discard)
 
         except Exception as e:
-            logger.error(f"Error processing filing: {e}", exc_info=True)
+            retry_counter += 1
+            print(f"Connection closed with message: {e}")
+            print(f"Reconnecting in 5 sec... (Attempt {retry_counter}/{max_retries})")
 
-    async def send_ping(self, websocket):
-        while self.running:
-            try:
-                pong_waiter = await websocket.ping()
-                await asyncio.wait_for(pong_waiter, timeout=5)
-                await asyncio.sleep(30)
-            except Exception as e:
-                logger.error(f"Error sending ping: {e}")
-                await websocket.close()
-                return
+            # Cancel the ping task
+            if ping_task is not None:
+                try:
+                    ping_task.cancel()
+                    await ping_task
+                except Exception:
+                    pass
+                ping_task = None
 
-    async def listen_for_filings(self):
-        retry_counter = 0
-        max_retries = 10
+            # Wait for background tasks to complete (optional)
+            if background_tasks:
+                print(f"⏳ Waiting for {len(background_tasks)} background tasks to complete...")
+                await asyncio.gather(*background_tasks, return_exceptions=True)
+                background_tasks.clear()
 
-        while retry_counter < max_retries and self.running:
-            try:
-                async with websockets.connect(self.ws_endpoint) as websocket:
-                    logger.info(f"Connected to: {self.server_url}")
-                    retry_counter = 0
+            await asyncio.sleep(5)
 
-                    ping_task = asyncio.create_task(self.send_ping(websocket))
+    print("Maximum reconnection attempts reached. Stopping client.")
 
-                    while self.running:
-                        message = await websocket.recv()
-                        filings = json.loads(message)
-
-                        for filing in filings:
-                            logger.info(f"📄 {filing['accessionNo']} {filing['formType']} {filing['filedAt']} CIK:{filing['cik']}")
-
-                            if filing['formType'] in ['10-K']:
-                                logger.info(f"🎯 Found {filing['formType']} filing! Starting background processing...")
-
-                                task = asyncio.create_task(self.process_filing(filing))
-                                self.background_tasks.add(task)
-                                task.add_done_callback(self.background_tasks.discard)
-
-            except Exception as e:
-                retry_counter += 1
-                logger.error(f"Connection error: {e}")
-                logger.info(f"Reconnecting in 10 sec... (Attempt {retry_counter}/{max_retries})")
-
-                await asyncio.sleep(10)
-
-        logger.error("Maximum reconnection attempts reached. Stopping listener.")
-
-    def shutdown(self):
-        logger.info("Shutting down filing listener...")
-        self.running = False
-
-async def main():
-    listener = FilingListener()
-
-    def signal_handler(signum, frame):
-        listener.shutdown()
-
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
-
-    try:
-        await listener.listen_for_filings()
-    finally:
-        if listener.background_tasks:
-            logger.info(f"Waiting for {len(listener.background_tasks)} background tasks...")
-            await asyncio.gather(*listener.background_tasks, return_exceptions=True)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(websocket_client())

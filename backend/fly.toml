@@ -1,6 +1,10 @@
 app = 'backend-weathered-shadow-9057'
 primary_region = 'gig'
 
+[processes]
+  app = "uvicorn entrypoints.backend:app --host 0.0.0.0 --port 8080"
+  filing_listener = "python filing_listener.py"
+
 [http_service]
   internal_port = 8080
   force_https = true

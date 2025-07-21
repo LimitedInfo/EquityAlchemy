@@ -8,6 +8,7 @@ from adapters.config import get_postgres_uri
 DEFAULT_SESSION_FACTORY = sessionmaker(
     bind=create_engine(
         get_postgres_uri(),
+        pool_pre_ping=True,
     )
 )
 
@@ -16,6 +17,8 @@ class AbstractUnitOfWork(ABC):
     sec_filings: repository.SECFilingRepository
     llm: repository.LLMRepository
     stmts: repository.PostgresCombinedFinancialStatementsRepository
+    companies: repository.CompanyRepository
+    market_data: Any
 
     def __enter__(self):
         return self
@@ -37,6 +40,7 @@ class FakeUnitOfWork(AbstractUnitOfWork):
         self.sec_filings = repository.FakeSECFilingRepository()
         self.llm = None
         self.stmts = None
+        self.market_data = repository.FakeMarketDataProvider()
         self.committed = False
 
     def __enter__(self):
@@ -81,6 +85,8 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         self.stmts = repository.PostgresCombinedFinancialStatementsRepository(self.session)
         self.sec_filings = repository.SECFilingRepository()
         self.llm = repository.LLMRepository()
+        self.companies = repository.PostgresCompanyRepository(self.session)
+        self.market_data = repository.YFinanceMarketDataProvider()
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:

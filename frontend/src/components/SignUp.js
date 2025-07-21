@@ -24,9 +24,9 @@ function SignUp() {
             marginBottom: '20px',
             fontSize: '28px',
             fontWeight: '600',
-            color: '#1f2937'
+            color: 'white'
           }}>
-            Join Financial Data App
+            Join Equity Alchemy
           </h2>
           <p style={{
             marginBottom: '40px',
@@ -34,7 +34,7 @@ function SignUp() {
             fontSize: '16px',
             lineHeight: '1.5'
           }}>
-            Create your account to get unlimited access to financial statements and premium features.
+            Create your account to get access to financial statements and premium features.
           </p>
           <div style={{
             display: 'flex',

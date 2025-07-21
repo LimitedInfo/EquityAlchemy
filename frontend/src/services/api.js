@@ -61,4 +61,15 @@ export const getSecFilingsUrl = async (ticker, formType = "10-K") => {
   return api.get(url);
 };
 
+export const searchTickers = async (term) => {
+  if (!term) {
+    return { data: [] };
+  }
+  return api.get(`/api/tickers/search?term=${term}`);
+};
+
+export const getPriceData = (ticker, days = 30) => {
+  return api.get(`/api/financial/prices/${ticker}?days=${days}`);
+};
+
 export default api;

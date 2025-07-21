@@ -24,13 +24,13 @@ function Login() {
             marginBottom: '20px',
             fontSize: '28px',
             fontWeight: '600',
-            color: '#1f2937'
+            color: 'white'
           }}>
             Sign In to Your Account
           </h2>
           <p style={{
             marginBottom: '40px',
-            color: '#6b7280',
+            color: 'white',
             fontSize: '16px',
             lineHeight: '1.5'
           }}>

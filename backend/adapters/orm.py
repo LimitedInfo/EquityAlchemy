@@ -1,6 +1,21 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, func, create_engine, Text, Numeric, Index, Boolean
+from sqlalchemy import (
+    Table,
+    Column,
+    Integer,
+    String,
+    Date,
+    MetaData,
+    ForeignKey,
+    DateTime,
+    Boolean,
+    BigInteger,
+    Text,
+    Numeric,
+    Index,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.types import TypeDecorator, CHAR
@@ -84,6 +99,7 @@ class CombinedFinancialStatementsORM(Base):
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     ticker = Column(String, index=True, nullable=False)
+    company_name = Column(String, nullable=True)
     form_type = Column(String, nullable=True)
     data = Column(JSONType, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -96,44 +112,41 @@ class CombinedFinancialStatementsORM(Base):
     )
 
 
-class StockPriceORM(Base):
-    __tablename__ = "stock_prices"
+class CompanyORM(Base):
+    __tablename__ = 'companies'
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    ticker = Column(String, nullable=False)
-    date = Column(DateTime(timezone=True), nullable=False)
-    price = Column(Numeric(precision=10, scale=2), nullable=False)
-    market_reference_price = Column(Numeric(precision=10, scale=2), nullable=False)
+    name = Column(String, nullable=False)
+    ticker = Column(String, unique=True, index=True, nullable=False)
+    shares_outstanding = Column(BigInteger, nullable=True)
+    cik = Column(String, unique=True, index=True, nullable=True)
+    cusip = Column(String, nullable=True)
+    exchange = Column(String, nullable=True)
+    is_delisted = Column(Boolean, nullable=True)
+    category = Column(String, nullable=True)
+    sector = Column(String, nullable=True)
+    industry = Column(String, nullable=True)
+    sic = Column(String, nullable=True)
+    sic_sector = Column(String, nullable=True)
+    sic_industry = Column(String, nullable=True)
+    fama_sector = Column(String, nullable=True)
+    fama_industry = Column(String, nullable=True)
+    currency = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+    sec_api_id = Column(String, unique=True, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     __table_args__ = (
-        Index('ix_stock_prices_ticker_date', 'ticker', 'date'),
-        {"schema": None},
-    )
-
-
-class SignificantMoveORM(Base):
-    __tablename__ = "significant_moves"
-
-    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    ticker = Column(String, nullable=False)
-    occurred_at = Column(DateTime(timezone=True), nullable=False)
-    pct_change = Column(Numeric(precision=8, scale=4), nullable=False)
-    catalyst = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    __table_args__ = (
-        Index('ix_significant_moves_ticker_date', 'ticker', 'occurred_at'),
         {"schema": None},
     )
 
 
 def get_session_factory(database_url: str):
-    engine = create_engine(database_url)
+    engine = create_engine(database_url, pool_pre_ping=True)
     return sessionmaker(bind=engine)
 
 
 def create_tables(database_url: str):
-    engine = create_engine(database_url)
+    engine = create_engine(database_url, pool_pre_ping=True)
     Base.metadata.create_all(engine)

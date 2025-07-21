@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getIncomeStatements, getFreeQueryStatus, forecastFinancialData, getSecFilingsUrl } from '../services/api';
+import { getIncomeStatements, getFreeQueryStatus, forecastFinancialData, getSecFilingsUrl, searchTickers, getPriceData } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 
@@ -16,8 +16,34 @@ function FinancialData() {
   const [forecastError, setForecastError] = useState('');
   const [showForecast, setShowForecast] = useState(false);
   const [secFilingsUrl, setSecFilingsUrl] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [priceData, setPriceData] = useState(null);
   const navigate = useNavigate();
   const { isSignedIn } = useAuth();
+
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (ticker.length > 1) {
+        try {
+          const response = await searchTickers(ticker);
+          setSuggestions(response.data);
+          setShowSuggestions(true);
+        } catch (err) {
+          console.error('Failed to fetch ticker suggestions:', err);
+        }
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    };
+
+    const debounceFetch = setTimeout(() => {
+      fetchSuggestions();
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(debounceFetch);
+  }, [ticker]);
 
   useEffect(() => {
     const checkFreeQueryStatus = async () => {
@@ -41,17 +67,20 @@ function FinancialData() {
     setShowLoginPrompt(false);
 
     try {
-      const response = await getIncomeStatements(ticker, formType || null);
-      setFinancialData(response.data);
+      const financialResponse = await getIncomeStatements(ticker, formType || null);
+      setFinancialData(financialResponse.data);
 
-      try {
-        const secResponse = await getSecFilingsUrl(ticker, formType || '10-K');
-        setSecFilingsUrl(secResponse.data.sec_filings_url);
-      } catch (secError) {
-        console.warn('Failed to fetch SEC filings URL:', secError);
-      }
+      // Fetch price data separately without blocking
+      getPriceData(ticker, 30)
+        .then(priceResponse => setPriceData(priceResponse.data))
+        .catch(err => console.warn('Failed to fetch price data:', err));
 
-      if (!isSignedIn && response.headers['x-free-query-used'] === 'true') {
+      // Fetch SEC URL separately without blocking
+      getSecFilingsUrl(ticker, formType || '10-K')
+        .then(secResponse => setSecFilingsUrl(secResponse.data.sec_filings_url))
+        .catch(err => console.warn('Failed to fetch SEC filings URL:', err));
+
+      if (!isSignedIn && financialResponse.headers['x-free-query-used'] === 'true') {
         setShowLoginPrompt(true);
         setFreeQueryStatus(prev => ({
           ...prev,
@@ -237,12 +266,49 @@ function FinancialData() {
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label>Ticker Symbol:</label>
-          <input
-            type="text"
-            value={ticker}
-            onChange={(e) => setTicker(e.target.value.toUpperCase())}
-            required
-          />
+          <div className="ticker-input-container" style={{ position: 'relative' }}>
+            <input
+              type="text"
+              value={ticker}
+              onChange={(e) => setTicker(e.target.value.toUpperCase())}
+              onFocus={() => ticker.length > 1 && setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 100)} // Delay to allow click on suggestion
+              required
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <ul className="suggestions-list" style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                background: '#333',
+                border: '1px solid #555',
+                borderRadius: '4px',
+                listStyle: 'none',
+                padding: '5px 0',
+                margin: 0,
+                zIndex: 1000,
+              }}>
+                {suggestions.map((suggestion, index) => (
+                  <li
+                    key={index}
+                    onClick={() => {
+                      setTicker(suggestion);
+                      setSuggestions([]);
+                      setShowSuggestions(false);
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      cursor: 'pointer',
+                    }}
+                    onMouseDown={(e) => e.preventDefault()} // Prevents onBlur from firing before onClick
+                  >
+                    {suggestion}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
         <div className="form-group">
           <label>Form Type:</label>
@@ -277,6 +343,68 @@ function FinancialData() {
       </form>
 
       {error && <div className="error">{error}</div>}
+
+      {priceData && priceData.prices && priceData.prices.length > 0 && (
+        <div className="price-chart-container" style={{ marginBottom: '30px' }}>
+          <h3>{ticker} Stock Price - Last 30 Days</h3>
+          <div style={{ background: 'rgb(14, 13, 13)', border: '1px solid #555', borderRadius: '5px', padding: '20px' }}>
+                          {(() => {
+                const prices = priceData.prices.filter(p => p > 0);
+                if (prices.length === 0) return <p style={{ color: '#ccc', textAlign: 'center' }}>No price data available</p>;
+
+                const maxPrice = Math.max(...prices);
+                const minPrice = Math.min(...prices);
+                const priceRange = maxPrice - minPrice || 1;
+                const chartHeight = 200;
+                const chartWidth = 600;
+                const padding = 40;
+
+                return (
+                  <>
+                    <svg viewBox={`0 0 ${chartWidth + 2 * padding} ${chartHeight + 2 * padding}`} style={{ width: '100%', height: 'auto' }}>
+                      <line x1={padding} y1={padding} x2={padding} y2={chartHeight + padding} stroke="#888" strokeWidth="1" />
+                      <line x1={padding} y1={chartHeight + padding} x2={chartWidth + padding} y2={chartHeight + padding} stroke="#888" strokeWidth="1" />
+
+                      <text x={padding - 35} y={padding + 5} fill="#ccc" fontSize="12">${maxPrice.toFixed(2)}</text>
+                      <text x={padding - 35} y={chartHeight + padding + 5} fill="#ccc" fontSize="12">${minPrice.toFixed(2)}</text>
+
+                      <polyline
+                        fill="none"
+                        stroke="rgb(128, 223, 141)"
+                        strokeWidth="2"
+                        points={prices.map((price, i) => {
+                          const x = padding + (i / (prices.length - 1)) * chartWidth;
+                          const y = padding + chartHeight - ((price - minPrice) / priceRange) * chartHeight;
+                          return `${x},${y}`;
+                        }).join(' ')}
+                      />
+
+                      {prices.map((price, i) => {
+                        const x = padding + (i / (prices.length - 1)) * chartWidth;
+                        const y = padding + chartHeight - ((price - minPrice) / priceRange) * chartHeight;
+                        return (
+                          <circle key={i} cx={x} cy={y} r="3" fill="rgb(128, 223, 141)"
+                            title={`$${price.toFixed(2)}`}>
+                            <title>${price.toFixed(2)}</title>
+                          </circle>
+                        );
+                      })}
+                    </svg>
+                    <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#ccc' }}>
+                      <span>Current: ${prices[prices.length - 1].toFixed(2)}</span>
+                      {priceData.price_changes && priceData.price_changes.length > 0 && (
+                        <span style={{ color: priceData.price_changes[priceData.price_changes.length - 1] >= 0 ? 'rgb(128, 223, 141)' : '#ff6b6b' }}>
+                          {priceData.price_changes[priceData.price_changes.length - 1] >= 0 ? '+' : ''}
+                          {priceData.price_changes[priceData.price_changes.length - 1]?.toFixed(2)}%
+                        </span>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+          </div>
+        </div>
+      )}
 
       {financialData && (
         <div className="financial-results">
@@ -363,7 +491,7 @@ function FinancialData() {
         </div>
       )}
 
-      <p style={{ marginTop: '15px', padding: '10px', borderRadius: '5px', textAlign: 'center', border: '1px solidrgb(75, 130, 185)' }}> <em> By using this service, you excempt us the provider of data, from any liability for any errors or omissions in the data.</em></p>
+      <p style={{ marginTop: '15px', padding: '10px', borderRadius: '5px', textAlign: 'center', border: '1px solidrgb(75, 130, 185)' }}> <em> By using this service, you exempt us the provider of data, from any liability for any errors or omissions in the data.</em></p>
     </div>
   );
 }

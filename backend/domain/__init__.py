@@ -3,11 +3,8 @@
 from .model import (
     StockTicker,
     PricePoint,
-    SignificantMove,
-    StockPriceSeries,
-    PriceRepository,
-    SignificantMoveRepository,
     MarketDataProvider,
+
     Company,
     Filing,
     IncomeStatement,

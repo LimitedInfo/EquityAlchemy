@@ -2,6 +2,7 @@ import abc
 import requests
 
 from dotenv import load_dotenv
+import yfinance as yf
 from domain import model
 from adapters.filing_mapper import FilingMapper
 from sec_api import XbrlApi, QueryApi
@@ -13,17 +14,67 @@ import pandas as pd
 from typing import Optional, Iterable
 from sqlalchemy import select, and_
 from sqlalchemy.orm import Session
-from adapters.orm import CombinedFinancialStatementsORM, StockPriceORM, SignificantMoveORM
+from adapters.orm import CombinedFinancialStatementsORM, CompanyORM
 from typing import Protocol
 from datetime import date
 from decimal import Decimal
 from domain import (
-    StockTicker, PricePoint, SignificantMove, StockPriceSeries,
-    PriceRepository, SignificantMoveRepository
+    StockTicker, PricePoint, Company
 )
-
+from typing import List
 
 load_dotenv()
+
+class YFinanceMarketDataProvider(model.MarketDataProvider):
+    def __init__(self):
+        pass
+
+    def fetch_prices(self, ticker: str, start_date: date, end_date: date) -> List[PricePoint]:
+        try:
+            stock = yf.Ticker(ticker)
+            stock_data = stock.history(start=start_date, end=end_date)
+
+            if stock_data.empty:
+                return []
+
+            stock_data = stock_data.reset_index()
+
+            price_points = []
+            for _, row in stock_data.iterrows():
+                price_point = PricePoint(
+                    date=pd.to_datetime(row['Date']).to_pydatetime(),
+                    price=Decimal(str(round(row['Close'], 2)))
+                )
+                price_points.append(price_point)
+
+            return price_points
+
+        except Exception as e:
+            print(f"Error fetching data for {ticker}: {e}")
+            return []
+
+
+
+
+class FakeMarketDataProvider(model.MarketDataProvider):
+    def __init__(self):
+        self.fake_data = {}
+
+    def add_fake_data(self, ticker: str, price_points: List[PricePoint]):
+        self.fake_data[ticker.upper()] = price_points
+
+    def fetch_prices(self, ticker: str, start_date: date, end_date: date) -> List[PricePoint]:
+        ticker_data = self.fake_data.get(ticker.upper(), [])
+
+        filtered_data = [
+            point for point in ticker_data
+            if start_date <= point.date.date() <= end_date
+        ]
+
+        return filtered_data
+
+
+
 
 class SECFilingRepository():
     def __init__(self):
@@ -245,6 +296,99 @@ class FakeSECFilingRepository:
 
     def _make_request(self, url, headers=None):
         return {}
+
+
+class CompanyRepository(Protocol):
+    @abc.abstractmethod
+    def add(self, company: Company) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_by_ticker(self, ticker: str) -> Optional[Company]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def update(self, company: Company) -> None:
+        raise NotImplementedError
+
+
+class PostgresCompanyRepository(CompanyRepository):
+    def __init__(self, session: Session):
+        self.session = session
+
+    def add(self, company: Company) -> None:
+        orm_company = CompanyORM(
+            name=company.name,
+            ticker=company.ticker,
+            shares_outstanding=company.shares_outstanding,
+            cik=company.cik,
+            cusip=company.cusip,
+            exchange=company.exchange,
+            is_delisted=company.is_delisted,
+            category=company.category,
+            sector=company.sector,
+            industry=company.industry,
+            sic=company.sic,
+            sic_sector=company.sic_sector,
+            sic_industry=company.sic_industry,
+            fama_sector=company.fama_sector,
+            fama_industry=company.fama_industry,
+            currency=company.currency,
+            location=company.location,
+            sec_api_id=company.sec_api_id
+        )
+        self.session.add(orm_company)
+
+    def update(self, company: Company) -> None:
+        orm_company = self.session.execute(
+            select(CompanyORM).where(CompanyORM.ticker == company.ticker)
+        ).scalar_one_or_none()
+
+        if orm_company:
+            orm_company.name = company.name
+            orm_company.shares_outstanding = company.shares_outstanding
+            orm_company.cik = company.cik
+            orm_company.cusip = company.cusip
+            orm_company.exchange = company.exchange
+            orm_company.is_delisted = company.is_delisted
+            orm_company.category = company.category
+            orm_company.sector = company.sector
+            orm_company.industry = company.industry
+            orm_company.sic = company.sic
+            orm_company.sic_sector = company.sic_sector
+            orm_company.sic_industry = company.sic_industry
+            orm_company.fama_sector = company.fama_sector
+            orm_company.fama_industry = company.fama_industry
+            orm_company.currency = company.currency
+            orm_company.location = company.location
+            orm_company.sec_api_id = company.sec_api_id
+
+    def get_by_ticker(self, ticker: str) -> Optional[Company]:
+        orm_company = self.session.execute(
+            select(CompanyORM).where(CompanyORM.ticker == ticker)
+        ).scalar_one_or_none()
+        if orm_company:
+            return Company(
+                name=orm_company.name,
+                ticker=orm_company.ticker,
+                shares_outstanding=orm_company.shares_outstanding,
+                cik=orm_company.cik,
+                cusip=orm_company.cusip,
+                exchange=orm_company.exchange,
+                is_delisted=orm_company.is_delisted,
+                category=orm_company.category,
+                sector=orm_company.sector,
+                industry=orm_company.industry,
+                sic=orm_company.sic,
+                sic_sector=orm_company.sic_sector,
+                sic_industry=orm_company.sic_industry,
+                fama_sector=orm_company.fama_sector,
+                fama_industry=orm_company.fama_industry,
+                currency=orm_company.currency,
+                location=orm_company.location,
+                sec_api_id=orm_company.sec_api_id
+            )
+        return None
 
 
 class LLMRepository:
@@ -477,6 +621,14 @@ class CombinedFinancialStatementsRepository(Protocol):
     def delete(self, ticker: str, form_type: str) -> None:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def search_tickers(self, term: str) -> list[str]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_all_tickers(self) -> list[str]:
+        raise NotImplementedError
+
 
 class PostgresCombinedFinancialStatementsRepository(CombinedFinancialStatementsRepository):
     def __init__(self, session: Session):
@@ -514,6 +666,7 @@ class PostgresCombinedFinancialStatementsRepository(CombinedFinancialStatementsR
             financial_statements=[],
             source_filings=[],
             ticker=orm_obj.ticker,
+            company_name=orm_obj.company_name,
             form_type=orm_obj.form_type
         )
         stmt.df = df
@@ -521,6 +674,7 @@ class PostgresCombinedFinancialStatementsRepository(CombinedFinancialStatementsR
 
     def add(self, stmt: model.CombinedFinancialStatements) -> None:
         data = self._serialize(stmt)
+        data['company_name'] = stmt.company_name
         orm_obj = CombinedFinancialStatementsORM(**data)
         self.session.add(orm_obj)
 
@@ -558,203 +712,18 @@ class PostgresCombinedFinancialStatementsRepository(CombinedFinancialStatementsR
         if orm_obj:
             self.session.delete(orm_obj)
 
-
-class PostgresPriceRepository(PriceRepository):
-    def __init__(self, session: Session):
-        self.session = session
-
-    def get_series(self, ticker: StockTicker, start_date: date, end_date: date) -> Optional[StockPriceSeries]:
-        stmt = select(StockPriceORM).where(
-            and_(
-                StockPriceORM.ticker == ticker.symbol,
-                StockPriceORM.date >= start_date,
-                StockPriceORM.date <= end_date
-            )
-        ).order_by(StockPriceORM.date)
-
-        results = self.session.execute(stmt).scalars().all()
-
-        if not results:
-            return None
-
-        price_points = []
-        for orm_obj in results:
-            price_point = PricePoint(
-                date=orm_obj.date,
-                price=Decimal(str(orm_obj.price)),
-                market_reference_price=Decimal(str(orm_obj.market_reference_price))
-            )
-            price_points.append(price_point)
-
-        return StockPriceSeries(ticker, price_points)
-
-    def add_many(self, points: list[PricePoint], ticker: StockTicker) -> None:
-        for point in points:
-            existing = self.session.execute(
-                select(StockPriceORM).where(
-                    and_(
-                        StockPriceORM.ticker == ticker.symbol,
-                        StockPriceORM.date == point.date
-                    )
-                )
-            ).scalar_one_or_none()
-
-            if not existing:
-                orm_obj = StockPriceORM(
-                    ticker=ticker.symbol,
-                    date=point.date,
-                    price=float(point.price),
-                    market_reference_price=float(point.market_reference_price)
-                )
-                self.session.add(orm_obj)
-
-        self.session.commit()
-
-    def get_latest_date(self, ticker: StockTicker) -> Optional[date]:
-        stmt = select(StockPriceORM.date).where(
-            StockPriceORM.ticker == ticker.symbol
-        ).order_by(StockPriceORM.date.desc()).limit(1)
-
-        result = self.session.execute(stmt).scalar_one_or_none()
-        return result.date() if result else None
-
-
-class PostgresSignificantMoveRepository(SignificantMoveRepository):
-    def __init__(self, session: Session):
-        self.session = session
-
-    def add(self, move: SignificantMove) -> None:
-        orm_obj = SignificantMoveORM(
-            ticker=move.ticker.symbol,
-            occurred_at=move.occurred_at,
-            pct_change=float(move.pct_change),
-            catalyst=move.catalyst
+    def search_tickers(self, term: str) -> list[str]:
+        search_term = f"%{term}%"
+        query = (
+            select(CombinedFinancialStatementsORM.ticker)
+            .where(CombinedFinancialStatementsORM.ticker.ilike(search_term))
+            .distinct()
+            .limit(10)
         )
-        self.session.add(orm_obj)
-        self.session.commit()
+        result = self.session.execute(query).fetchall()
+        return [row[0] for row in result]
 
-        move.id = str(orm_obj.id)
-
-    def add_many(self, moves: list[SignificantMove]) -> None:
-        for move in moves:
-            existing = self.session.execute(
-                select(SignificantMoveORM).where(
-                    and_(
-                        SignificantMoveORM.ticker == move.ticker.symbol,
-                        SignificantMoveORM.occurred_at == move.occurred_at
-                    )
-                )
-            ).scalar_one_or_none()
-
-            if not existing:
-                orm_obj = SignificantMoveORM(
-                    ticker=move.ticker.symbol,
-                    occurred_at=move.occurred_at,
-                    pct_change=float(move.pct_change),
-                    catalyst=move.catalyst
-                )
-                self.session.add(orm_obj)
-                move.id = str(orm_obj.id)
-
-        self.session.commit()
-
-    def list_between(self, ticker: StockTicker, start_date: date, end_date: date) -> list[SignificantMove]:
-        stmt = select(SignificantMoveORM).where(
-            and_(
-                SignificantMoveORM.ticker == ticker.symbol,
-                SignificantMoveORM.occurred_at >= start_date,
-                SignificantMoveORM.occurred_at <= end_date
-            )
-        ).order_by(SignificantMoveORM.occurred_at)
-
-        results = self.session.execute(stmt).scalars().all()
-
-        moves = []
-        for orm_obj in results:
-            move = SignificantMove(
-                id=str(orm_obj.id),
-                ticker=ticker,
-                occurred_at=orm_obj.occurred_at,
-                pct_change=Decimal(str(orm_obj.pct_change)),
-                catalyst=orm_obj.catalyst
-            )
-            moves.append(move)
-
-        return moves
-
-    def update_catalyst(self, move_id: str, catalyst: str) -> None:
-        stmt = select(SignificantMoveORM).where(SignificantMoveORM.id == move_id)
-        result = self.session.execute(stmt).scalar_one_or_none()
-
-        if result:
-            result.catalyst = catalyst
-            self.session.commit()
-
-
-class FakePriceRepository(PriceRepository):
-    def __init__(self):
-        self.price_data = {}
-
-    def get_series(self, ticker: StockTicker, start_date: date, end_date: date) -> Optional[StockPriceSeries]:
-        ticker_data = self.price_data.get(ticker.symbol, [])
-
-        filtered_points = [
-            point for point in ticker_data
-            if start_date <= point.date.date() <= end_date
-        ]
-
-        if not filtered_points:
-            return None
-
-        return StockPriceSeries(ticker, filtered_points)
-
-    def add_many(self, points: list[PricePoint], ticker: StockTicker) -> None:
-        if ticker.symbol not in self.price_data:
-            self.price_data[ticker.symbol] = []
-
-        existing_dates = {point.date.date() for point in self.price_data[ticker.symbol]}
-
-        for point in points:
-            if point.date.date() not in existing_dates:
-                self.price_data[ticker.symbol].append(point)
-
-        self.price_data[ticker.symbol].sort(key=lambda p: p.date)
-
-    def get_latest_date(self, ticker: StockTicker) -> Optional[date]:
-        ticker_data = self.price_data.get(ticker.symbol, [])
-        if not ticker_data:
-            return None
-        return max(point.date.date() for point in ticker_data)
-
-
-class FakeSignificantMoveRepository(SignificantMoveRepository):
-    def __init__(self):
-        self.moves = []
-        self.next_id = 1
-
-    def add(self, move: SignificantMove) -> None:
-        move.id = str(self.next_id)
-        self.next_id += 1
-        self.moves.append(move)
-
-    def add_many(self, moves: list[SignificantMove]) -> None:
-        for move in moves:
-            existing = any(
-                m.ticker == move.ticker and m.occurred_at == move.occurred_at
-                for m in self.moves
-            )
-            if not existing:
-                self.add(move)
-
-    def list_between(self, ticker: StockTicker, start_date: date, end_date: date) -> list[SignificantMove]:
-        return [
-            move for move in self.moves
-            if (move.ticker == ticker and
-                start_date <= move.occurred_at.date() <= end_date)
-        ]
-
-    def update_catalyst(self, move_id: str, catalyst: str) -> None:
-        for move in self.moves:
-            if move.id == move_id:
-                move.catalyst = catalyst
-                break
+    def get_all_tickers(self) -> list[str]:
+        query = select(CombinedFinancialStatementsORM.ticker).distinct()
+        result = self.session.execute(query).fetchall()
+        return [row[0] for row in result]

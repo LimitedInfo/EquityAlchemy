@@ -7,6 +7,132 @@ from typing import List, Dict, Set
 import os
 import re
 import time
+from sec_api import MappingApi
+from sqlalchemy import BigInteger
+
+
+def get_price_time_series(ticker: str, days: int = 30, uow_instance: uow.AbstractUnitOfWork = None) -> model.PriceTimeSeries:
+    from datetime import date, timedelta
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days)
+    with uow_instance as uow:
+        price_points = uow.market_data.fetch_prices(ticker, start_date, end_date)
+        return model.PriceTimeSeries(ticker, price_points)
+
+
+def get_all_tickers(uow_instance: uow.AbstractUnitOfWork) -> list[str]:
+    with uow_instance as uow:
+        return uow.stmts.get_all_tickers()
+
+def update_shares_outstanding(ticker: str, uow_instance: uow.AbstractUnitOfWork):
+    with uow_instance as uow:
+        try:
+            db_company = uow.companies.get_by_ticker(ticker)
+
+            if not db_company:
+                try:
+                    supplement_company_data(ticker, uow)
+                    db_company = uow.companies.get_by_ticker(ticker)
+                except (ValueError, RuntimeError) as e:
+                    print(f"Could not supplement data for {ticker}: {e}")
+                    return
+
+            if not db_company:
+                return
+
+            cik = uow.sec_filings.get_cik_by_ticker(ticker)
+            if not cik:
+                return
+
+            raw_filings = uow.sec_filings.get_filings(cik)
+            db_company.filings = raw_filings
+
+            if db_company.filings:
+                latest_filing = db_company.get_filings_by_type('10-K')
+                if latest_filing:
+                    filing_to_load = latest_filing[0]
+                    loaded_filing = load_data(filing_to_load, uow)
+                    if loaded_filing and loaded_filing.cover_page:
+                        shares_outstanding = loaded_filing.cover_page.entity_common_stock_shares_outstanding
+                        if shares_outstanding:
+                            db_company.shares_outstanding = shares_outstanding
+                            uow.companies.update(db_company)
+            uow.commit()
+        except Exception as e:
+            print(f"Could not update shares for {ticker}: {e}")
+            uow.rollback()
+
+
+def supplement_company_data(ticker: str, uow: uow.AbstractUnitOfWork) -> model.Company:
+    """
+    Fetches supplemental company data from the SEC API and persists it to the database.
+    """
+    with uow:
+        # Check if the company already exists
+        company = uow.companies.get_by_ticker(ticker)
+        if company and company.sector:  # Assuming sector is one of the supplemented fields
+            return company
+
+        # Fetch supplemental data from SEC API
+        mapping_api = MappingApi(os.getenv("SEC_API_KEY"))
+        try:
+            supplemental_data = mapping_api.resolve("ticker", ticker)[0]
+        except Exception as e:
+            raise RuntimeError(f"Failed to fetch supplemental data for {ticker}: {str(e)}")
+
+        if not supplemental_data:
+            raise ValueError(f"No supplemental data found for ticker: {ticker}")
+
+        # Create or update the company object
+        if company:
+            # Update existing company
+            company.name = supplemental_data.get('name', company.name)
+            company.cik = supplemental_data.get('cik', company.cik)
+            company.cusip = supplemental_data.get('cusip')
+            company.exchange = supplemental_data.get('exchange')
+            company.is_delisted = supplemental_data.get('isDelisted')
+            company.category = supplemental_data.get('category')
+            company.sector = supplemental_data.get('sector')
+            company.industry = supplemental_data.get('industry')
+            company.sic = supplemental_data.get('sic')
+            company.sic_sector = supplemental_data.get('sicSector')
+            company.sic_industry = supplemental_data.get('sicIndustry')
+            company.fama_sector = supplemental_data.get('famaSector')
+            company.fama_industry = supplemental_data.get('famaIndustry')
+            company.currency = supplemental_data.get('currency')
+            company.location = supplemental_data.get('location')
+            company.sec_api_id = supplemental_data.get('id')
+        else:
+            # Create new company
+            company = model.Company(
+                name=supplemental_data.get('name'),
+                ticker=supplemental_data.get('ticker'),
+                cik=supplemental_data.get('cik'),
+                shares_outstanding=None,
+                cusip=supplemental_data.get('cusip'),
+                exchange=supplemental_data.get('exchange'),
+                is_delisted=supplemental_data.get('isDelisted'),
+                category=supplemental_data.get('category'),
+                sector=supplemental_data.get('sector'),
+                industry=supplemental_data.get('industry'),
+                sic=supplemental_data.get('sic'),
+                sic_sector=supplemental_data.get('sicSector'),
+                sic_industry=supplemental_data.get('sicIndustry'),
+                fama_sector=supplemental_data.get('famaSector'),
+                fama_industry=supplemental_data.get('famaIndustry'),
+                currency=supplemental_data.get('currency'),
+                location=supplemental_data.get('location'),
+                sec_api_id=supplemental_data.get('id')
+            )
+            uow.companies.add(company)
+
+        uow.commit()
+        return company
+
+
+def search_tickers(term: str, uow_instance: uow.AbstractUnitOfWork) -> list[str]:
+    with uow_instance as uow:
+        return uow.stmts.search_tickers(term)
 
 
 def find_unique_companies_with_recent_10q_filings(api_key: str = None) -> List[Dict[str, str]]:
@@ -81,13 +207,17 @@ def find_unique_companies_with_recent_10q_filings(api_key: str = None) -> List[D
 
 def get_company_by_ticker(ticker: str, uow_instance: uow.AbstractUnitOfWork) -> model.Company:
     with uow_instance as uow:
+        company = uow.companies.get_by_ticker(ticker)
+        if not company:
+            raise ValueError(f"No company found for ticker: {ticker}")
+
         cik = uow.sec_filings.get_cik_by_ticker(ticker)
         if not cik:
             raise ValueError(f"No CIK found for ticker: {ticker}")
 
         raw_filings = uow.sec_filings.get_filings(cik)
-
-    return model.Company(name=ticker, ticker=ticker, cik=cik, filings=raw_filings)
+        company.filings = raw_filings
+        return company
 
 
 def get_dataframe_from_ticker(ticker: str, repository_or_uow):
@@ -310,7 +440,7 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
         return model.CombinedFinancialStatements([], ticker, form_type)
 
     income_statements = [filing.income_statement for filing in filings_to_load if filing.income_statement]
-    combined_statements = model.CombinedFinancialStatements(income_statements, filings_to_load, ticker, form_type)
+    combined_statements = model.CombinedFinancialStatements(income_statements, filings_to_load, ticker, company.name, form_type)
 
     if uow_instance.llm and len(income_statements) > 1:
         tables = [stmt.table for stmt in income_statements if not stmt.table.empty]
@@ -329,6 +459,9 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
     combined_statements.df = combined_statements.df[sorted(combined_statements.df.columns, key=lambda x: x.split(':')[0])]
 
     combined_statements.sec_filings_url = get_sec_filings_url(ticker=ticker, form_type=form_type, uow_instance=uow_instance)
+
+    # update shares outstanding
+    update_shares_outstanding(ticker, uow_instance)
 
     if overwrite_database:
         with uow_instance as uow:

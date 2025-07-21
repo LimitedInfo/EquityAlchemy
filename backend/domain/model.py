@@ -211,12 +211,45 @@ class Filing:
 
 
 class Company:
-    def __init__(self, name: str, ticker: str, cik: str = None, filings: list[Filing] = None) -> None:
+    def __init__(self,
+                 name: str,
+                 ticker: str,
+                 cik: Optional[str] = None,
+                 filings: Optional[List[Filing]] = None,
+                 shares_outstanding: Optional[int] = None,
+                 cusip: Optional[str] = None,
+                 exchange: Optional[str] = None,
+                 is_delisted: Optional[bool] = None,
+                 category: Optional[str] = None,
+                 sector: Optional[str] = None,
+                 industry: Optional[str] = None,
+                 sic: Optional[str] = None,
+                 sic_sector: Optional[str] = None,
+                 sic_industry: Optional[str] = None,
+                 fama_sector: Optional[str] = None,
+                 fama_industry: Optional[str] = None,
+                 currency: Optional[str] = None,
+                 location: Optional[str] = None,
+                 sec_api_id: Optional[str] = None) -> None:
         self.name = name
         self.ticker = ticker
         self.cik = cik
         self._filings = filings or []
-        self._shares_outstanding = None
+        self._shares_outstanding = shares_outstanding
+        self.cusip = cusip
+        self.exchange = exchange
+        self.is_delisted = is_delisted
+        self.category = category
+        self.sector = sector
+        self.industry = industry
+        self.sic = sic
+        self.sic_sector = sic_sector
+        self.sic_industry = sic_industry
+        self.fama_sector = fama_sector
+        self.fama_industry = fama_industry
+        self.currency = currency
+        self.location = location
+        self.sec_api_id = sec_api_id
 
     @property
     def filings(self):
@@ -583,10 +616,11 @@ class IncomeStatement(AbstractFinancialStatement):
 
 
 class CombinedFinancialStatements:
-    def __init__(self, financial_statements: list[AbstractFinancialStatement], source_filings: list[Filing], ticker: str, form_type: str = None) -> None:
+    def __init__(self, financial_statements: list[AbstractFinancialStatement], source_filings: list[Filing], ticker: str, company_name: str, form_type: str = None) -> None:
         self.financial_statements = financial_statements
         self.source_filings = source_filings
         self.ticker = ticker
+        self.company_name = company_name
         self.form_type = form_type
         self.df = self._combine_statements()
         self.sec_filings_url = None
@@ -922,120 +956,77 @@ class StockTicker:
 class PricePoint:
     date: datetime
     price: Decimal
-    market_reference_price: Decimal
+    market_reference_price: Optional[Decimal] = None
 
     def __post_init__(self):
         if self.price <= 0:
             raise ValueError("Price must be positive")
-        if self.market_reference_price <= 0:
+        if self.market_reference_price is not None and self.market_reference_price <= 0:
             raise ValueError("Market reference price must be positive")
 
 
-@dataclass
-class SignificantMove:
-    id: Optional[str]
-    ticker: StockTicker
-    occurred_at: datetime
-    pct_change: Decimal
-    catalyst: Optional[str] = None
+class PriceTimeSeries:
+    def __init__(self, ticker: str, price_points: List[PricePoint]):
+        self.ticker = ticker
+        self.price_points = price_points
 
-    def __post_init__(self):
-        if abs(self.pct_change) < Decimal('1.0'):
-            raise ValueError("Significant move must have at least 1% change")
+    def most_recent_price(self) -> PricePoint:
+        return self.price_points[-1]
 
+    def table(self) -> pd.DataFrame:
+        if not self.price_points:
+            return pd.DataFrame()
 
-class StockPriceSeries:
-    def __init__(self, ticker: StockTicker, points: List[PricePoint]):
-        if not points:
-            raise ValueError("Stock price series must have at least one price point")
+        data = []
+        has_market_data = any(point.market_reference_price is not None for point in self.price_points)
 
-        self._ticker = ticker
-        self._points = sorted(points, key=lambda p: p.date)
+        for point in self.price_points:
+            row_data = {
+                'Date': point.date,
+                'Price': float(point.price)
+            }
 
-    @property
-    def ticker(self) -> StockTicker:
-        return self._ticker
+            if has_market_data and point.market_reference_price is not None:
+                row_data['Market_Price'] = float(point.market_reference_price)
+            elif has_market_data:
+                row_data['Market_Price'] = None
 
-    @property
-    def points(self) -> List[PricePoint]:
-        return self._points.copy()
+            data.append(row_data)
 
-    def detect_significant_moves(self, threshold: Decimal) -> List[SignificantMove]:
-        if len(self._points) < 2:
-            return []
+        df = pd.DataFrame(data)
 
-        significant_moves = []
+        if df.empty:
+            return df
 
-        for i in range(1, len(self._points)):
-            current_point = self._points[i]
-            previous_point = self._points[i-1]
+        df['Date'] = pd.to_datetime(df['Date'])
+        df = df.set_index('Date')
 
-            stock_pct_change = ((current_point.price - previous_point.price) / previous_point.price) * 100
-            market_pct_change = ((current_point.market_reference_price - previous_point.market_reference_price) / previous_point.market_reference_price) * 100
+        if has_market_data and 'Market_Price' in df.columns:
+            df['Relative_Performance'] = (df['Price'] / df['Market_Price']) * 100
 
-            relative_move = abs(stock_pct_change - market_pct_change)
+        if len(df) > 1:
+            df['Price_Change_Pct'] = df['Price'].pct_change() * 100
+            if has_market_data and 'Market_Price' in df.columns:
+                df['Market_Change_Pct'] = df['Market_Price'].pct_change() * 100
 
-            if relative_move >= threshold:
-                move = SignificantMove(
-                    id=None,
-                    ticker=self._ticker,
-                    occurred_at=current_point.date,
-                    pct_change=stock_pct_change,
-                    catalyst=None
-                )
-                significant_moves.append(move)
+        df['Price'] = df['Price'].round(2)
 
-        return significant_moves
+        if has_market_data and 'Market_Price' in df.columns:
+            df['Market_Price'] = df['Market_Price'].round(2)
+            if 'Relative_Performance' in df.columns:
+                df['Relative_Performance'] = df['Relative_Performance'].round(2)
 
-    def get_price_at_date(self, target_date: datetime) -> Optional[PricePoint]:
-        for point in self._points:
-            if point.date.date() == target_date.date():
-                return point
-        return None
+        if 'Price_Change_Pct' in df.columns:
+            df['Price_Change_Pct'] = df['Price_Change_Pct'].round(2)
+            if 'Market_Change_Pct' in df.columns:
+                df['Market_Change_Pct'] = df['Market_Change_Pct'].round(2)
 
-    def get_date_range(self) -> tuple[datetime, datetime]:
-        if not self._points:
-            raise ValueError("No price points available")
-        return self._points[0].date, self._points[-1].date
+        df.columns.name = f'{self.ticker} Price Data'
 
-
-class PriceRepository(Protocol):
-    @abstractmethod
-    def get_series(self, ticker: StockTicker, start_date: date, end_date: date) -> Optional[StockPriceSeries]:
-        pass
-
-    @abstractmethod
-    def add_many(self, points: List[PricePoint], ticker: StockTicker) -> None:
-        pass
-
-    @abstractmethod
-    def get_latest_date(self, ticker: StockTicker) -> Optional[date]:
-        pass
-
-
-class SignificantMoveRepository(Protocol):
-    @abstractmethod
-    def add(self, move: SignificantMove) -> None:
-        pass
-
-    @abstractmethod
-    def add_many(self, moves: List[SignificantMove]) -> None:
-        pass
-
-    @abstractmethod
-    def list_between(self, ticker: StockTicker, start_date: date, end_date: date) -> List[SignificantMove]:
-        pass
-
-    @abstractmethod
-    def update_catalyst(self, move_id: str, catalyst: str) -> None:
-        pass
+        return df
 
 
 class MarketDataProvider(Protocol):
     @abstractmethod
     def fetch_prices(self, ticker: str, start_date: date, end_date: date) -> List[PricePoint]:
-        pass
-
-    @abstractmethod
-    def fetch_index_prices(self, index_symbol: str, start_date: date, end_date: date) -> List[PricePoint]:
         pass

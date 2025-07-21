@@ -14,6 +14,8 @@ Your Fly.io PostgreSQL instance is configured as:
 
 The application automatically detects Fly.io deployment through the `FLY_APP_NAME` environment variable.
 
+flyctl deploy --config fly.listener.toml
+
 ### Required Secrets
 
 Set these secrets in your Fly.io app:

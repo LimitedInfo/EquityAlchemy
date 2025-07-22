@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getIncomeStatements, getFreeQueryStatus, forecastFinancialData, getSecFilingsUrl, searchTickers, getPriceData } from '../services/api';
+import { getIncomeStatements, getFreeQueryStatus, getSecFilingsUrl, searchTickers, getPriceData } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 
@@ -11,13 +11,10 @@ function FinancialData() {
   const [error, setError] = useState('');
   const [freeQueryStatus, setFreeQueryStatus] = useState(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
-  const [forecastData, setForecastData] = useState(null);
-  const [forecastLoading, setForecastLoading] = useState(false);
-  const [forecastError, setForecastError] = useState('');
-  const [showForecast, setShowForecast] = useState(false);
   const [secFilingsUrl, setSecFilingsUrl] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [priceData, setPriceData] = useState(null);
   const navigate = useNavigate();
   const { isSignedIn } = useAuth();
@@ -29,18 +26,20 @@ function FinancialData() {
           const response = await searchTickers(ticker);
           setSuggestions(response.data);
           setShowSuggestions(true);
+          setHighlightedIndex(-1); // Reset highlighted index when new suggestions load
         } catch (err) {
           console.error('Failed to fetch ticker suggestions:', err);
         }
       } else {
         setSuggestions([]);
         setShowSuggestions(false);
+        setHighlightedIndex(-1);
       }
     };
 
     const debounceFetch = setTimeout(() => {
       fetchSuggestions();
-    }, 300); // 300ms debounce
+    }, 300);
 
     return () => clearTimeout(debounceFetch);
   }, [ticker]);
@@ -60,11 +59,95 @@ function FinancialData() {
     checkFreeQueryStatus();
   }, [isSignedIn]);
 
+  const handleKeyDown = (e) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+
+    switch (e.key) {
+      case 'Tab':
+        e.preventDefault(); // Prevent normal tab behavior
+        setHighlightedIndex(prevIndex => {
+          const nextIndex = prevIndex < suggestions.length - 1 ? prevIndex + 1 : 0;
+          return nextIndex;
+        });
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedIndex(prevIndex => {
+          const nextIndex = prevIndex < suggestions.length - 1 ? prevIndex + 1 : 0;
+          return nextIndex;
+        });
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex(prevIndex => {
+          const nextIndex = prevIndex > 0 ? prevIndex - 1 : suggestions.length - 1;
+          return nextIndex;
+        });
+        break;
+      case 'Enter':
+        e.preventDefault(); // Prevent form submission
+        if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
+          const selectedCompany = suggestions[highlightedIndex];
+          setTicker(selectedCompany.ticker);
+          setSuggestions([]);
+          setShowSuggestions(false);
+          setHighlightedIndex(-1);
+        } else if (suggestions.length > 0) {
+          // If no item highlighted, select the first one
+          const selectedCompany = suggestions[0];
+          setTicker(selectedCompany.ticker);
+          setSuggestions([]);
+          setShowSuggestions(false);
+          setHighlightedIndex(-1);
+        }
+        break;
+      case 'Escape':
+        setSuggestions([]);
+        setShowSuggestions(false);
+        setHighlightedIndex(-1);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const isValidCompany = async (input) => {
+    if (!input.trim()) return false;
+
+    // First check current suggestions
+    const isInCurrentSuggestions = suggestions.some(company =>
+      company.ticker.toUpperCase() === input.toUpperCase() ||
+      company.name.toUpperCase() === input.toUpperCase()
+    );
+
+    if (isInCurrentSuggestions) return true;
+
+    // If not in current suggestions, search for exact match
+    try {
+      const response = await searchTickers(input);
+      return response.data.some(company =>
+        company.ticker.toUpperCase() === input.toUpperCase() ||
+        company.name.toUpperCase() === input.toUpperCase()
+      );
+    } catch (err) {
+      console.error('Error validating company:', err);
+      return false;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     setShowLoginPrompt(false);
+
+    // Validate the company exists in our database
+    const isValid = await isValidCompany(ticker);
+    if (!isValid) {
+      setError('Please enter a valid company name or ticker symbol. Use the suggestions dropdown to find valid companies.');
+      setLoading(false);
+      return;
+    }
 
     try {
       const financialResponse = await getIncomeStatements(ticker, formType || null);
@@ -114,34 +197,6 @@ function FinancialData() {
     navigate('/login');
   };
 
-  const handleForecast = async () => {
-    if (!financialData || !ticker) {
-      setForecastError('Please load financial data first');
-      return;
-    }
-
-    setForecastLoading(true);
-    setForecastError('');
-
-    try {
-      const response = await forecastFinancialData(ticker, formType || null, 10);
-      setForecastData(response.data);
-      setShowForecast(true);
-    } catch (err) {
-      console.error('Forecast error:', err);
-
-      if (err.response && err.response.status === 401) {
-        setForecastError('Please sign in to access forecasting features.');
-        setShowLoginPrompt(true);
-      } else if (err.response && err.response.status === 404) {
-        setForecastError(`Financial data not found for forecasting. Error: ${err.response?.data?.detail || 'Unknown error'}`);
-      } else {
-        setForecastError(`Failed to generate forecast: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
-      }
-    } finally {
-      setForecastLoading(false);
-    }
-  };
 
   const handleExportCsv = () => {
     if (!financialData) {
@@ -265,14 +320,16 @@ function FinancialData() {
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label>Ticker Symbol:</label>
+          <label>Company Name or Ticker Symbol:</label>
           <div className="ticker-input-container" style={{ position: 'relative' }}>
             <input
               type="text"
               value={ticker}
-              onChange={(e) => setTicker(e.target.value.toUpperCase())}
+              onChange={(e) => setTicker(e.target.value)}
+              onKeyDown={handleKeyDown}
               onFocus={() => ticker.length > 1 && setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 100)} // Delay to allow click on suggestion
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 100)}
+              placeholder="e.g., AAPL or Apple Inc"
               required
             />
             {showSuggestions && suggestions.length > 0 && (
@@ -293,21 +350,32 @@ function FinancialData() {
                   <li
                     key={index}
                     onClick={() => {
-                      setTicker(suggestion);
+                      setTicker(suggestion.ticker);
                       setSuggestions([]);
                       setShowSuggestions(false);
+                      setHighlightedIndex(-1);
                     }}
+                    onMouseEnter={() => setHighlightedIndex(index)}
                     style={{
                       padding: '8px 12px',
                       cursor: 'pointer',
+                      borderBottom: index < suggestions.length - 1 ? '1px solid #444' : 'none',
+                      backgroundColor: index === highlightedIndex ? '#4a5568' : 'transparent',
+                      transition: 'background-color 0.1s ease',
                     }}
-                    onMouseDown={(e) => e.preventDefault()} // Prevents onBlur from firing before onClick
+                    onMouseDown={(e) => e.preventDefault()}
                   >
-                    {suggestion}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 'bold', color: index === highlightedIndex ? '#ffffff' : '#80df8d' }}>{suggestion.ticker}</span>
+                      <span style={{ fontSize: '12px', color: index === highlightedIndex ? '#e2e8f0' : '#ccc', marginLeft: '10px' }}>{suggestion.name}</span>
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
+            <div style={{ fontSize: '11px', color: '#888', marginTop: '5px' }}>
+              💡 Use Tab/Arrow keys to navigate, Enter to select, Escape to close
+            </div>
           </div>
         </div>
         <div className="form-group">

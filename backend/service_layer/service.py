@@ -9,6 +9,9 @@ import re
 import time
 from sec_api import MappingApi
 from sqlalchemy import BigInteger
+import csv
+import os
+from typing import Dict, List, Tuple
 
 
 def get_price_time_series(ticker: str, days: int = 30, uow_instance: uow.AbstractUnitOfWork = None) -> model.PriceTimeSeries:
@@ -688,3 +691,109 @@ def _convert_to_millions(val):
             return num
     except (ValueError, TypeError):
         return val
+
+
+def search_companies_from_csv(term: str) -> List[Dict[str, str]]:
+    """
+    Search companies by name or ticker from CSV file.
+    Returns list of dicts with 'name' and 'ticker' keys.
+    """
+    if not term or len(term) < 2:
+        return []
+
+    csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'all_companies_available.csv')
+
+    if not os.path.exists(csv_path):
+        print(f"CSV file not found at: {csv_path}")
+        return []
+
+    results = []
+    term_lower = term.lower()
+
+    try:
+        with open(csv_path, 'r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                name = row.get('name', '').strip()
+                ticker = row.get('ticker', '').strip()
+
+                # Search in both name and ticker (case insensitive)
+                if (term_lower in name.lower() or
+                    term_lower in ticker.lower()):
+                    results.append({
+                        'name': name,
+                        'ticker': ticker
+                    })
+
+                # Limit results to prevent overwhelming the UI
+                if len(results) >= 10:
+                    break
+
+    except Exception as e:
+        print(f"Error reading CSV file: {e}")
+        return []
+
+    return results
+
+
+def validate_company_exists(ticker_or_name: str) -> bool:
+    """
+    Validate that a company exists in the CSV by ticker or name.
+    Returns True if found, False otherwise.
+    """
+    csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'all_companies_available.csv')
+
+    if not os.path.exists(csv_path):
+        return False
+
+    search_term = ticker_or_name.strip().upper()
+
+    try:
+        with open(csv_path, 'r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                name = row.get('name', '').strip().upper()
+                ticker = row.get('ticker', '').strip().upper()
+
+                if search_term == ticker or search_term == name:
+                    return True
+
+    except Exception as e:
+        print(f"Error validating company: {e}")
+        return False
+
+    return False
+
+
+def get_ticker_from_name_or_ticker(input_value: str) -> str:
+    """
+    Given a company name or ticker, return the ticker.
+    Returns the input if it's already a ticker, or finds the ticker for a company name.
+    """
+    csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'all_companies_available.csv')
+
+    if not os.path.exists(csv_path):
+        return input_value.upper()
+
+    search_term = input_value.strip()
+
+    try:
+        with open(csv_path, 'r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                name = row.get('name', '').strip()
+                ticker = row.get('ticker', '').strip()
+
+                # If input matches ticker exactly (case insensitive), return the ticker
+                if search_term.upper() == ticker.upper():
+                    return ticker.upper()
+
+                # If input matches name exactly (case insensitive), return the ticker
+                if search_term.upper() == name.upper():
+                    return ticker.upper()
+
+    except Exception as e:
+        print(f"Error getting ticker: {e}")
+        return input_value.upper()
+
+    return input_value.upper()

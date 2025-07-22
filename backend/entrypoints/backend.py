@@ -142,12 +142,11 @@ async def search_tickers_endpoint(term: str):
     if not term:
         return []
     try:
-        with uow.SqlAlchemyUnitOfWork() as uow_instance:
-            tickers = service.search_tickers(term, uow_instance)
-        return tickers
+        companies = service.search_companies_from_csv(term)
+        return companies
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Error searching for tickers.")
+        raise HTTPException(status_code=500, detail="Error searching for companies.")
 
 
 @app.post("/api/company/update-shares")
@@ -179,6 +178,16 @@ async def supplement_company_data_endpoint(ticker: str):
 
 @app.get("/api/financial/income/{ticker}")
 async def get_income_statements(ticker: str, request: Request, form_type: Optional[str] = None):
+    # Validate that the company exists in our CSV
+    if not service.validate_company_exists(ticker):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Company '{ticker}' not found. Please select a valid company from the suggestions."
+        )
+
+    # Convert company name to ticker if needed
+    validated_ticker = service.get_ticker_from_name_or_ticker(ticker)
+
     # Check if user is authenticated
     user_authenticated = is_authenticated(request)
 
@@ -192,7 +201,7 @@ async def get_income_statements(ticker: str, request: Request, form_type: Option
 
     try:
         with uow.SqlAlchemyUnitOfWork() as uow_instance:
-            combined_financial_statements = service.get_consolidated_income_statements(ticker, uow_instance, form_type=form_type, retrieve_from_database=True, overwrite_database=False)
+            combined_financial_statements = service.get_consolidated_income_statements(validated_ticker, uow_instance, form_type=form_type, retrieve_from_database=True, overwrite_database=False)
 
         metrics = []
         metric_names = combined_financial_statements.get_all_metrics()

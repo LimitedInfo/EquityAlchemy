@@ -52,3 +52,8 @@ pytest
 ```
 
 This will execute the test suite and verify that the backend is working correctly.
+
+versioning:
+1.1 will be a new online version
+1.11 will be a new local version
+2.0 will be a new major version

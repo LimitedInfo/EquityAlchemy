@@ -16,6 +16,8 @@ function FinancialData() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [priceData, setPriceData] = useState(null);
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState(30);
+  const [loadingPriceData, setLoadingPriceData] = useState(false);
   const navigate = useNavigate();
   const { isSignedIn } = useAuth();
 
@@ -88,14 +90,14 @@ function FinancialData() {
         e.preventDefault(); // Prevent form submission
         if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
           const selectedCompany = suggestions[highlightedIndex];
-          setTicker(selectedCompany.ticker);
+          setTicker(selectedCompany.ticker.toUpperCase());
           setSuggestions([]);
           setShowSuggestions(false);
           setHighlightedIndex(-1);
         } else if (suggestions.length > 0) {
           // If no item highlighted, select the first one
           const selectedCompany = suggestions[0];
-          setTicker(selectedCompany.ticker);
+          setTicker(selectedCompany.ticker.toUpperCase());
           setSuggestions([]);
           setShowSuggestions(false);
           setHighlightedIndex(-1);
@@ -154,9 +156,7 @@ function FinancialData() {
       setFinancialData(financialResponse.data);
 
       // Fetch price data separately without blocking
-      getPriceData(ticker, 30)
-        .then(priceResponse => setPriceData(priceResponse.data))
-        .catch(err => console.warn('Failed to fetch price data:', err));
+      fetchPriceData(ticker, selectedTimePeriod, true);
 
       // Fetch SEC URL separately without blocking
       getSecFilingsUrl(ticker, formType || '10-K')
@@ -270,6 +270,43 @@ function FinancialData() {
     }
   };
 
+  const timePeriodOptions = [
+    { label: '1M', days: 30 },
+    { label: '3M', days: 90 },
+    { label: '1Y', days: 365 },
+    { label: '5Y', days: 1825 },
+    { label: '10Y', days: 3650 }
+  ];
+
+  const fetchPriceData = async (tickerSymbol, days, showLoading = false) => {
+    if (!tickerSymbol || !tickerSymbol.trim()) return;
+
+    if (showLoading) {
+      setLoadingPriceData(true);
+    }
+
+    try {
+      const priceResponse = await getPriceData(tickerSymbol.trim(), days);
+      setPriceData(priceResponse.data);
+    } catch (err) {
+      console.warn('Failed to fetch price data:', err);
+      if (showLoading) {
+        setPriceData(null);
+      }
+    } finally {
+      if (showLoading) {
+        setLoadingPriceData(false);
+      }
+    }
+  };
+
+  const handleTimePeriodChange = (days) => {
+    setSelectedTimePeriod(days);
+    if (ticker && ticker.trim() && financialData) {
+      fetchPriceData(ticker, days);
+    }
+  };
+
   return (
     <div className="financial-container">
       <h2>Financial Data</h2>
@@ -325,7 +362,7 @@ function FinancialData() {
             <input
               type="text"
               value={ticker}
-              onChange={(e) => setTicker(e.target.value)}
+              onChange={(e) => setTicker(e.target.value.toUpperCase())}
               onKeyDown={handleKeyDown}
               onFocus={() => ticker.length > 1 && setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 100)}
@@ -350,7 +387,7 @@ function FinancialData() {
                   <li
                     key={index}
                     onClick={() => {
-                      setTicker(suggestion.ticker);
+                      setTicker(suggestion.ticker.toUpperCase());
                       setSuggestions([]);
                       setShowSuggestions(false);
                       setHighlightedIndex(-1);
@@ -373,9 +410,6 @@ function FinancialData() {
                 ))}
               </ul>
             )}
-            <div style={{ fontSize: '11px', color: '#888', marginTop: '5px' }}>
-              💡 Use Tab/Arrow keys to navigate, Enter to select, Escape to close
-            </div>
           </div>
         </div>
         <div className="form-group">
@@ -411,68 +445,6 @@ function FinancialData() {
       </form>
 
       {error && <div className="error">{error}</div>}
-
-      {priceData && priceData.prices && priceData.prices.length > 0 && (
-        <div className="price-chart-container" style={{ marginBottom: '30px' }}>
-          <h3>{ticker} Stock Price - Last 30 Days</h3>
-          <div style={{ background: 'rgb(14, 13, 13)', border: '1px solid #555', borderRadius: '5px', padding: '20px' }}>
-                          {(() => {
-                const prices = priceData.prices.filter(p => p > 0);
-                if (prices.length === 0) return <p style={{ color: '#ccc', textAlign: 'center' }}>No price data available</p>;
-
-                const maxPrice = Math.max(...prices);
-                const minPrice = Math.min(...prices);
-                const priceRange = maxPrice - minPrice || 1;
-                const chartHeight = 200;
-                const chartWidth = 600;
-                const padding = 40;
-
-                return (
-                  <>
-                    <svg viewBox={`0 0 ${chartWidth + 2 * padding} ${chartHeight + 2 * padding}`} style={{ width: '100%', height: 'auto' }}>
-                      <line x1={padding} y1={padding} x2={padding} y2={chartHeight + padding} stroke="#888" strokeWidth="1" />
-                      <line x1={padding} y1={chartHeight + padding} x2={chartWidth + padding} y2={chartHeight + padding} stroke="#888" strokeWidth="1" />
-
-                      <text x={padding - 35} y={padding + 5} fill="#ccc" fontSize="12">${maxPrice.toFixed(2)}</text>
-                      <text x={padding - 35} y={chartHeight + padding + 5} fill="#ccc" fontSize="12">${minPrice.toFixed(2)}</text>
-
-                      <polyline
-                        fill="none"
-                        stroke="rgb(128, 223, 141)"
-                        strokeWidth="2"
-                        points={prices.map((price, i) => {
-                          const x = padding + (i / (prices.length - 1)) * chartWidth;
-                          const y = padding + chartHeight - ((price - minPrice) / priceRange) * chartHeight;
-                          return `${x},${y}`;
-                        }).join(' ')}
-                      />
-
-                      {prices.map((price, i) => {
-                        const x = padding + (i / (prices.length - 1)) * chartWidth;
-                        const y = padding + chartHeight - ((price - minPrice) / priceRange) * chartHeight;
-                        return (
-                          <circle key={i} cx={x} cy={y} r="3" fill="rgb(128, 223, 141)"
-                            title={`$${price.toFixed(2)}`}>
-                            <title>${price.toFixed(2)}</title>
-                          </circle>
-                        );
-                      })}
-                    </svg>
-                    <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#ccc' }}>
-                      <span>Current: ${prices[prices.length - 1].toFixed(2)}</span>
-                      {priceData.price_changes && priceData.price_changes.length > 0 && (
-                        <span style={{ color: priceData.price_changes[priceData.price_changes.length - 1] >= 0 ? 'rgb(128, 223, 141)' : '#ff6b6b' }}>
-                          {priceData.price_changes[priceData.price_changes.length - 1] >= 0 ? '+' : ''}
-                          {priceData.price_changes[priceData.price_changes.length - 1]?.toFixed(2)}%
-                        </span>
-                      )}
-                    </div>
-                  </>
-                );
-              })()}
-          </div>
-        </div>
-      )}
 
       {financialData && (
         <div className="financial-results">
@@ -540,6 +512,102 @@ function FinancialData() {
             </table>
           </div>
           <p><em>Units displayed in millions where applicable</em></p>
+
+          {priceData && priceData.prices && priceData.prices.length > 0 && (
+        <div className="price-chart-container" style={{ marginBottom: '30px' }}>
+          <h3>{ticker} Stock Price - {timePeriodOptions.find(opt => opt.days === selectedTimePeriod)?.label || `${selectedTimePeriod} Days`}</h3>
+
+          <div style={{ marginBottom: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {timePeriodOptions.map((option) => (
+              <button
+                key={option.days}
+                onClick={() => handleTimePeriodChange(option.days)}
+                disabled={loadingPriceData}
+                style={{
+                  background: selectedTimePeriod === option.days ? 'rgb(128, 223, 141)' : 'transparent',
+                  color: selectedTimePeriod === option.days ? '#000' : 'rgb(128, 223, 141)',
+                  border: '1px solid rgb(128, 223, 141)',
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  cursor: loadingPriceData ? 'not-allowed' : 'pointer',
+                  fontSize: '12px',
+                  opacity: loadingPriceData ? 0.6 : 1,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ background: 'rgb(14, 13, 13)', border: '1px solid #555', borderRadius: '5px', padding: '20px' }}>
+            {loadingPriceData ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#ccc' }}>
+                <p>Loading price data...</p>
+              </div>
+            ) : (() => {
+                const prices = priceData.prices.filter(p => p > 0);
+                if (prices.length === 0) return <p style={{ color: '#ccc', textAlign: 'center' }}>No price data available</p>;
+
+                const maxPrice = Math.max(...prices);
+                const minPrice = Math.min(...prices);
+                const priceRange = maxPrice - minPrice || 1;
+                const chartHeight = 200;
+                const chartWidth = 600;
+                const padding = 40;
+
+                return (
+                  <>
+                    <svg viewBox={`0 0 ${chartWidth + 2 * padding} ${chartHeight + 2 * padding}`} style={{ width: '100%', height: 'auto' }}>
+                      <line x1={padding} y1={padding} x2={padding} y2={chartHeight + padding} stroke="#888" strokeWidth="1" />
+                      <line x1={padding} y1={chartHeight + padding} x2={chartWidth + padding} y2={chartHeight + padding} stroke="#888" strokeWidth="1" />
+
+                      <text x={padding - 35} y={padding + 5} fill="#ccc" fontSize="12">${maxPrice.toFixed(2)}</text>
+                      <text x={padding - 35} y={chartHeight + padding + 5} fill="#ccc" fontSize="12">${minPrice.toFixed(2)}</text>
+
+                      <polyline
+                        fill="none"
+                        stroke="rgb(128, 223, 141)"
+                        strokeWidth="2"
+                        points={prices.map((price, i) => {
+                          const x = padding + (i / (prices.length - 1)) * chartWidth;
+                          const y = padding + chartHeight - ((price - minPrice) / priceRange) * chartHeight;
+                          return `${x},${y}`;
+                        }).join(' ')}
+                      />
+
+                      {prices.map((price, i) => {
+                        const x = padding + (i / (prices.length - 1)) * chartWidth;
+                        const y = padding + chartHeight - ((price - minPrice) / priceRange) * chartHeight;
+                        return (
+                          <circle key={i} cx={x} cy={y} r="3" fill="rgb(128, 223, 141)"
+                            title={`$${price.toFixed(2)}`}>
+                            <title>${price.toFixed(2)}</title>
+                          </circle>
+                        );
+                      })}
+                    </svg>
+                    <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#ccc' }}>
+                      <span>Current: ${prices[prices.length - 1].toFixed(2)}</span>
+                      {(() => {
+                        const firstPrice = prices[0];
+                        const lastPrice = prices[prices.length - 1];
+                        const periodChange = ((lastPrice - firstPrice) / firstPrice) * 100;
+                        return (
+                          <span style={{ color: periodChange >= 0 ? 'rgb(128, 223, 141)' : '#ff6b6b' }}>
+                            {periodChange >= 0 ? '+' : ''}
+                            {periodChange.toFixed(2)}%
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </>
+                );
+              })()}
+          </div>
+        </div>
+      )}
+
           {secFilingsUrl && (
             <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#3A3F4B', borderRadius: '5px', textAlign: 'center', border: '1px solidrgb(75, 130, 185)' }}>
               <p style={{ margin: '0', color: '#F2F2F2' }}>

@@ -797,3 +797,13 @@ def get_ticker_from_name_or_ticker(input_value: str) -> str:
         return input_value.upper()
 
     return input_value.upper()
+
+def check_for_xbrl(ticker, form_type, uow_instance):
+    company = get_company_by_ticker(ticker, uow_instance)
+    company.filings = company.get_filings_by_type(form_type)
+    try:
+        company.filings[0] = load_data(company.filings[0], uow_instance)
+    except Exception as e:
+        print(e)
+        return False
+    return True

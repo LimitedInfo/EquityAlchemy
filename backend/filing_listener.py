@@ -120,20 +120,36 @@ async def start_health_server():
         print(f"❌ Health server error traceback: {traceback.format_exc()}")
         raise
 
-async def process_10k_filing(filing_data):
-    """Process a 10-K filing in the background"""
-    time.sleep(1.2)
+async def process_10k_filing(filing_data, retry_count=0):
+    """Process a 10-K filing in the background with exponential backoff"""
+    time.sleep(5.2)
     print("waiting 1.2 seconds for the filing to be available")
+
+    max_retries = 5
+
     try:
         uow_instance = uow.SqlAlchemyUnitOfWork()
 
         with uow_instance as uow_sqlalchemy:
             ticker = uow_sqlalchemy.sec_filings.get_ticker_by_cik(filing_data['cik'])
 
-        print(f"🔄 Processing 10-K filing for ticker: {ticker}")
+        print(f"🔄 Processing 10-K filing for ticker: {ticker} (attempt {retry_count + 1}/{max_retries + 1})")
 
         if not ticker:
             print(f"⚠️  No ticker found for CIK: {filing_data['cik']}")
+            return
+
+        if not service.check_for_xbrl(ticker, "10-K", uow_instance):
+            if retry_count >= max_retries:
+                print(f"⚠️  Max retries ({max_retries}) reached for {ticker} - giving up")
+                return
+
+            wait_hours = 2 ** retry_count
+            wait_seconds = wait_hours * 3600
+            print(f"⚠️  No XBRL data found for {ticker}. Retrying in {wait_hours} hour(s) ({wait_seconds} seconds)")
+
+            await asyncio.sleep(wait_seconds)
+            await process_10k_filing(filing_data, retry_count + 1)
             return
 
         result = service.get_consolidated_income_statements(
@@ -148,6 +164,14 @@ async def process_10k_filing(filing_data):
 
     except Exception as e:
         print(f"❌ Error processing 10-K filing: {e}")
+        if retry_count < max_retries:
+            wait_hours = 2 ** retry_count
+            wait_seconds = wait_hours * 3600
+            print(f"❌ Retrying {filing_data.get('cik', 'unknown')} in {wait_hours} hour(s) due to error: {e}")
+            await asyncio.sleep(wait_seconds)
+            await process_10k_filing(filing_data, retry_count + 1)
+        else:
+            print(f"❌ Max retries ({max_retries}) reached for {filing_data.get('cik', 'unknown')} - giving up")
 
 async def send_ping(websocket):
     ping_count = 0

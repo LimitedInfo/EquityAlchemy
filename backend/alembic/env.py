@@ -26,7 +26,17 @@ target_metadata = Base.metadata
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 from adapters.config import get_postgres_uri
-config.set_main_option('sqlalchemy.url', get_postgres_uri())
+
+def get_database_url():
+    url = get_postgres_uri()
+    # Ensure we use psycopg (not psycopg2) dialect
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    return url
+
+config.set_main_option('sqlalchemy.url', get_database_url())
 
 
 def run_migrations_offline() -> None:

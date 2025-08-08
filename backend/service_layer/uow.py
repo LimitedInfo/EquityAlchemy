@@ -5,9 +5,16 @@ from sqlalchemy.orm import Session, sessionmaker
 from adapters import repository
 from adapters.config import get_postgres_uri
 
+def get_database_url():
+    url = get_postgres_uri()
+    # Ensure we use psycopg (not psycopg2) dialect
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return url
+
 DEFAULT_SESSION_FACTORY = sessionmaker(
     bind=create_engine(
-        get_postgres_uri(),
+        get_database_url(),
         pool_pre_ping=True,
     )
 )

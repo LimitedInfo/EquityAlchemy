@@ -1,5 +1,5 @@
 app = 'filing-listener-weathered-shadow-9057'
-primary_region = 'gig'
+primary_region = 'mia'
 
 [processes]
   listener = "python filing_listener.py"
@@ -22,7 +22,7 @@ primary_region = 'gig'
     type = "http"
 
 [[vm]]
-  memory = '512mb'
+  memory = '256mb'
   cpu_kind = 'shared'
   cpus = 1
   processes = ['listener']

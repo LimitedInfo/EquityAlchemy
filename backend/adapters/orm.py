@@ -15,6 +15,7 @@ from sqlalchemy import (
     Numeric,
     Index,
     func,
+    create_engine,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import declarative_base, sessionmaker

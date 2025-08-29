@@ -14,7 +14,7 @@ serve = ["gig", "mia"]
 [build]
 
 [build.args]
-REACT_APP_API_URL = "https://backend-weathered-shadow-9057.fly.dev"
+REACT_APP_API_BASE_URL = "https://backend-weathered-shadow-9057.fly.dev"
 
 [http_service]
   internal_port = 3000
@@ -32,6 +32,6 @@ REACT_APP_API_URL = "https://backend-weathered-shadow-9057.fly.dev"
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 256               # smallest RAM for lowest cost
+  memory_mb = 512               # smallest RAM for lowest cost
 
 

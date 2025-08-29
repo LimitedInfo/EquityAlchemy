@@ -3,13 +3,13 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'basic-sparkling-thunder-7964'
-primary_region = 'gig'
+# fly.toml — low-cost, instantly-available in GIG & MIA
 
-# Add regions configuration
+app = "basic-sparkling-thunder-7964"
+primary_region = "mia"          # pick one; MIA is a good primary for the US/East
+
 [regions]
-serve = ["gig", "iad"]
-
+serve = ["gig", "mia"]
 
 [build]
 
@@ -19,12 +19,19 @@ REACT_APP_API_URL = "https://backend-weathered-shadow-9057.fly.dev"
 [http_service]
   internal_port = 3000
   force_https = true
-  auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 1
-  processes = ['app']
+  auto_stop_machines = false    # keep one warm per region for "instant" availability
+  min_machines_running = 1      # per region (for regions you place machines in)
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"           # or "connections" for websockets
+    soft_limit = 100
+    hard_limit = 200
 
 [[vm]]
-  memory = '1gb'
-  cpu_kind = 'shared'
+  cpu_kind = "shared"
   cpus = 1
+  memory_mb = 256               # smallest RAM for lowest cost
+
+

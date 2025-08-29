@@ -13,8 +13,9 @@ serve = ["gig", "mia"]
 
 [build]
 
-[build.args]
-REACT_APP_API_BASE_URL = "https://backend-weathered-shadow-9057.fly.dev"
+  [build.args]
+  REACT_APP_API_BASE_URL = "https://backend-weathered-shadow-9057.fly.dev"
+  REACT_APP_CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmstaGVyb2ljLWRvZy04MS5jbGVyay5hY2NvdW50cy5kZXYk"
 
 [http_service]
   internal_port = 3000

@@ -34,9 +34,9 @@ ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
 ENV REACT_APP_CLERK_PUBLISHABLE_KEY=$REACT_APP_CLERK_PUBLISHABLE_KEY
 
 # # Debug: Print environment variables (without exposing sensitive data)
-# RUN echo "Environment variables set:" && \
-#     echo "REACT_APP_API_URL: $REACT_APP_API_URL" && \
-#     echo "REACT_APP_CLERK_PUBLISHABLE_KEY is set: $([ -n "$REACT_APP_CLERK_PUBLISHABLE_KEY" ] && echo 'YES' || echo 'NO')"
+RUN echo "Environment variables set:" && \
+    echo "REACT_APP_API_URL: $REACT_APP_API_URL" && \
+    echo "REACT_APP_CLERK_PUBLISHABLE_KEY is set: $([ -n "$REACT_APP_CLERK_PUBLISHABLE_KEY" ] && echo 'YES' || echo 'NO')"
 
 # Build application
 RUN npm run build

@@ -119,6 +119,9 @@ Icon
 .Trash-*
 .nfs*
 
+# Node.js
+node_modules/
+
 # Project specific
 *.log
 logs/

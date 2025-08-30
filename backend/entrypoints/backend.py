@@ -81,7 +81,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://equityalchemy.ai",
+        "https://www.equityalchemy.ai",
         "https://api.equityalchemy.ai",
+        "https://www.api.equityalchemy.ai",
         "https://basic-sparkling-thunder-7964.fly.dev",  # deployed frontend
         "http://localhost:3000",  # for local development
         "http://localhost:8000"   # for local development
@@ -126,6 +128,62 @@ def is_authenticated(request: Request) -> bool:
 @app.get("/")
 async def root():
     return {"message": "Financial Data API powered by Clerk Authentication"}
+
+@app.get("/api/debug/db-info")
+async def debug_db_info():
+    """Debug endpoint to check database connection info."""
+    try:
+        from sqlalchemy import text
+        with uow.SqlAlchemyUnitOfWork() as uow_instance:
+            # Get database name
+            result = uow_instance.session.execute(text("SELECT current_database()"))
+            db_name = result.scalar()
+            
+            # Get current schema
+            result = uow_instance.session.execute(text("SELECT current_schema()"))
+            schema = result.scalar()
+            
+            # Get search path
+            result = uow_instance.session.execute(text("SHOW search_path"))
+            search_path = result.scalar()
+            
+            # Check if table exists
+            result = uow_instance.session.execute(
+                text("""
+                    SELECT schemaname, tablename 
+                    FROM pg_tables 
+                    WHERE tablename = 'combined_financial_statements'
+                """)
+            )
+            table_info = result.fetchall()
+            
+            # Get all tables in public schema
+            result = uow_instance.session.execute(
+                text("""
+                    SELECT tablename 
+                    FROM pg_tables 
+                    WHERE schemaname = 'public'
+                    ORDER BY tablename
+                    LIMIT 10
+                """)
+            )
+            public_tables = [row[0] for row in result.fetchall()]
+            
+            return {
+                "database": db_name,
+                "current_schema": schema,
+                "search_path": search_path,
+                "combined_financial_statements_found_in": [
+                    {"schema": row[0], "table": row[1]} for row in table_info
+                ],
+                "sample_public_tables": public_tables
+            }
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
 
 @app.get("/api/free-query-status")
 async def get_free_query_status(request: Request):

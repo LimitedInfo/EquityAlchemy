@@ -4,16 +4,12 @@ primary_region = "mia"          # pick one; MIA is a good primary for the US/Eas
 [regions]
 serve = ["gig", "mia"]
 
-[processes]
-  app = "uvicorn entrypoints.backend:app --host 0.0.0.0 --port 8080"
-
 [http_service]
   internal_port = 8080
   force_https = true
   auto_start_machines = true
   auto_stop_machines = false    # keep one warm per region for "instant" availability
   min_machines_running = 1      # per region (for regions you place machines in)
-  processes = ["app"]
 
   [http_service.concurrency]
     type = "requests"           # or "connections" for websockets
@@ -21,6 +17,6 @@ serve = ["gig", "mia"]
     hard_limit = 200
 
 [[vm]]
-  memory = '256mb'
+  memory = '512mb'
   cpu_kind = 'shared'
   cpus = 1

@@ -16,5 +16,5 @@ COPY . .
 # Expose port 8080
 EXPOSE 8080
 
-# Simplest possible command for testing
+# Run the app directly
 CMD ["uvicorn", "entrypoints.backend:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -20,7 +20,7 @@ root.render(
   <React.StrictMode>
     <ClerkProvider
       publishableKey={PUBLISHABLE_KEY}
-      proxyUrl="https://clerk.equityalchemy.ai"
+      {...(!isLocalhost ? { proxyUrl: "https://clerk.equityalchemy.ai" } : {})}
       afterSignOutUrl="/financial"
       signInUrl="/login"
       signUpUrl="/signup"

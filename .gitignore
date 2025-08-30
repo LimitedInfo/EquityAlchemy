@@ -142,3 +142,4 @@ cache/
 .cursorrules
 .cursorignore
 .cursorignore
+frontend/.env.production

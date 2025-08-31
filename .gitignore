@@ -143,3 +143,5 @@ cache/
 .cursorignore
 .cursorignore
 frontend/.env.production
+backend/.env.local
+backend/.env.production

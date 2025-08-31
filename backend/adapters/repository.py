@@ -23,7 +23,8 @@ from domain import (
 )
 from typing import List
 
-load_dotenv()
+if os.getenv("ENV") != "PRODUCTION":
+    load_dotenv(".env.local")
 
 class YFinanceMarketDataProvider(model.MarketDataProvider):
     def __init__(self):

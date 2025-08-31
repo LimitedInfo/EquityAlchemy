@@ -3,7 +3,8 @@ from adapters.orm import create_tables
 from adapters.config import get_postgres_uri
 from dotenv import load_dotenv
 
-load_dotenv()
+if os.getenv("ENV") != "PRODUCTION":
+    load_dotenv(".env.local")
 
 
 def init_db():

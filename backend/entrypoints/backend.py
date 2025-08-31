@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing import Dict, Optional, List
 from service_layer import service
 from service_layer import uow
+from service_layer import forecasting
 # from service_layer import forecast
 import pandas as pd
 import numpy as np
@@ -358,19 +359,9 @@ async def forecast_financial_data(ticker: str, request: Request, forecast_reques
         print(f"Forecast Years: {forecast_request.forecast_years}")
 
         with uow.SqlAlchemyUnitOfWork() as uow_instance:
-            print(f"Loading financial data for {ticker}...")
             combined_financial_statements = service.get_consolidated_income_statements(
                 ticker, uow_instance, form_type=form_type
             )
-
-            print(f"Financial statements loaded: {combined_financial_statements is not None}")
-            if combined_financial_statements:
-                metrics = combined_financial_statements.get_all_metrics()
-                periods = combined_financial_statements.get_all_periods()
-                print(f"Metrics found: {len(metrics) if metrics else 0}")
-                print(f"Periods found: {len(periods) if periods else 0}")
-                print(f"First few metrics: {metrics[:3] if metrics else 'None'}")
-                print(f"First few periods: {periods[:3] if periods else 'None'}")
 
         if not combined_financial_statements:
             raise HTTPException(
@@ -380,50 +371,67 @@ async def forecast_financial_data(ticker: str, request: Request, forecast_reques
 
         metrics = combined_financial_statements.get_all_metrics()
         if not metrics:
-            print(f"ERROR: No metrics found in financial statements")
             raise HTTPException(
                 status_code=404,
                 detail=f"No financial metrics found for {ticker}. The data may be empty or malformed."
             )
 
-        df = combined_financial_statements.table
-        print(f"DataFrame shape: {df.shape}")
-        print(f"DataFrame empty: {df.empty}")
-        print(f"DataFrame columns: {list(df.columns)}")
-
+        df = combined_financial_statements.df
         if df.empty:
-            print(f"ERROR: DataFrame is empty")
             raise HTTPException(
                 status_code=404,
                 detail=f"No financial data table available for forecasting for {ticker}."
             )
 
-        # from service_layer import forecast # This line was removed by the user's edit, so this import is no longer needed.
-        # forecast_result = forecast.forecast_financial_data(df, forecast_request.forecast_years) # This line was removed by the user's edit, so this line is no longer needed.
+        forecasted_df = forecasting.create_forecast_columns(
+            df,
+            forecasting.DEFAULT_FORECASTING_METHODS,
+            forecasting.DEFAULT_CALCULATED_METHODS,
+            periods=forecast_request.forecast_years,
+            verbose=False
+        )
 
-        # forecasted_data_dict = forecast_result.forecasted_data.reset_index().to_dict('records') # This line was removed by the user's edit, so this line is no longer needed.
-        # lower_bound_dict = forecast_result.lower_bound_data.reset_index().to_dict('records') # This line was removed by the user's edit, so this line is no longer needed.
-        # upper_bound_dict = forecast_result.upper_bound_data.reset_index().to_dict('records') # This line was removed by the user's edit, so this line is no longer needed.
+        def parse_numeric(v):
+            if v is None:
+                return None
+            try:
+                if isinstance(v, str):
+                    vv = v.replace(",", "").replace("$", "")
+                    return float(vv)
+                if isinstance(v, (int, float, np.floating)):
+                    return float(v)
+                if isinstance(v, pd.Series):
+                    if not v.empty and pd.notna(v.iloc[0]):
+                        return float(v.iloc[0])
+                return None
+            except Exception:
+                return None
 
-        # response_data = ForecastResponse( # This line was removed by the user's edit, so this line is no longer needed.
-        #     ticker=ticker, # This line was removed by the user's edit, so this line is no longer needed.
-        #     form_type=form_type, # This line was removed by the user's edit, so this line is no longer needed.
-        #     forecasted_data=forecasted_data_dict, # This line was removed by the user's edit, so this line is no longer needed.
-        #     lower_bound_data=lower_bound_dict, # This line was removed by the user's edit, so this line is no longer needed.
-        #     upper_bound_data=upper_bound_dict, # This line was removed by the user's edit, so this line is no longer needed.
-        #     forecast_periods=forecast_result.forecast_periods, # This line was removed by the user's edit, so this line is no longer needed.
-        #     metadata=forecast_result.metadata # This line was removed by the user's edit, so this line is no longer needed.
-        # ) # This line was removed by the user's edit, so this line is no longer needed.
+        all_periods = list(forecasted_df.columns)
+        sorted_periods = sorted(all_periods, key=lambda x: x.split(":")[0])
 
-        # return JSONResponse(content=response_data.dict()) # This line was removed by the user's edit, so this line is no longer needed.
+        response_metrics = []
+        for metric_name in forecasted_df.index:
+            series = forecasted_df.loc[metric_name]
+            values = {}
+            for period in sorted_periods:
+                val = series.get(period) if isinstance(series, pd.Series) else None
+                num = parse_numeric(val)
+                if num is not None and not (isinstance(num, float) and (np.isnan(num) or np.isinf(num))):
+                    values[period] = num
+            response_metrics.append({
+                "name": metric_name,
+                "values": values
+            })
 
-        # The original code had a call to forecast.forecast_financial_data(df, forecast_request.forecast_years)
-        # which was removed by the user's edit. Since the user's edit also removed the import,
-        # this block will now cause a NameError.
-        # To make the code runnable, I will comment out the line that calls the removed function.
-        # This is a necessary consequence of the user's edit.
-        # print(f"ERROR: Forecast functionality is currently unavailable.")
-        # raise HTTPException(status_code=500, detail="Forecasting service unavailable. Please ensure Facebook Prophet is installed.")
+        response_data = FinancialStatements(
+            ticker=combined_financial_statements.ticker,
+            form_type=combined_financial_statements.form_type,
+            metrics=response_metrics,
+            periods=sorted_periods
+        )
+
+        return JSONResponse(content=response_data.dict())
 
     except HTTPException:
         raise

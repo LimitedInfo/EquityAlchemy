@@ -1,7 +1,9 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+
+if os.getenv("ENV") != "PRODUCTION":
+    load_dotenv(".env.local")
 
 
 def get_postgres_uri() -> str:

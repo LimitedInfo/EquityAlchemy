@@ -1,7 +1,7 @@
 """Service layer module initialization."""
 
-from . import financial_statements_service
 from . import uow
 from . import service
+from . import forecasting
 
-__all__ = ['financial_statements_service', 'uow', 'service']
+__all__ = ['uow', 'service', 'forecasting']

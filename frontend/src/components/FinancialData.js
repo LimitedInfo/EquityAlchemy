@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getIncomeStatements, getFreeQueryStatus, getSecFilingsUrl, searchTickers, getPriceData } from '../services/api';
+import { getIncomeStatements, getFreeQueryStatus, getSecFilingsUrl, searchTickers, getPriceData, forecastFinancialData } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 
@@ -270,6 +270,29 @@ function FinancialData() {
     }
   };
 
+  const handleForecast = async () => {
+    if (!financialData || !ticker) {
+      setError('Load financial data first');
+      return;
+    }
+    try {
+      setLoading(true);
+      setError('');
+
+      const response = await forecastFinancialData(ticker, formType || null, 5);
+      setFinancialData(response.data);
+    } catch (err) {
+      if (err.response && err.response.status === 401) {
+        setError('Please sign in to use forecasting.');
+        setShowLoginPrompt(true);
+      } else {
+        setError('Failed to generate forecast');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const timePeriodOptions = [
     { label: '1M', days: 30 },
     { label: '3M', days: 90 },
@@ -466,6 +489,22 @@ function FinancialData() {
             >
               📄 Export to CSV
             </button>
+            <button
+              onClick={handleForecast}
+              style={{
+                background: '#17a2b8',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                marginLeft: '10px'
+              }}
+              disabled={loading}
+            >
+              🔮 Forecast
+            </button>
           </div>
 
           <div className="financial-table-container">
@@ -473,9 +512,16 @@ function FinancialData() {
               <thead>
                 <tr>
                   <th>Metric</th>
-                  {financialData.periods.map(period => (
-                    <th key={period}>{period.split(':')[1] || period}</th>
-                  ))}
+                  {financialData.periods.map(period => {
+                    const parts = period.split(':');
+                    let label = parts[1] || period;
+                    if (parts.length === 3 && parts[2] === 'Forecast') {
+                      label = `${parts[0]}-${parts[1]}`;
+                    }
+                    return (
+                      <th key={period}>{label}</th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>

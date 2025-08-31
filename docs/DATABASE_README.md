@@ -24,9 +24,6 @@ Following the layered architecture pattern:
    - `repository.py`: Concrete PostgreSQL repository implementation
    - `unit_of_work.py`: Transaction management
 
-3. **Service Layer** (`service_layer/financial_statements_service.py`)
-   - Orchestrates domain logic and infrastructure
-   - Provides simple functions for CRUD operations
 
 ## Database Schema
 

@@ -443,7 +443,7 @@ function FinancialData() {
               </ul>
             )}
           </div>
-          <label style={{ fontSize: '10px'}}> We are currently only providing data for companies that file directly with the SEC. This means that ADRs and non-US companies are not supported yet. Stay tuned!</label>
+          <label style={{ fontSize: '10px'}}> We are currently only providing data for companies that file directly with the SEC. This means that ADRs and non-US companies are not supported yet. </label>
         </div>
         <div className="form-group">
           <label>Form Type:</label>

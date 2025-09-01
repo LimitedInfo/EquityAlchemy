@@ -770,3 +770,20 @@ class PostgresCombinedFinancialStatementsRepository(CombinedFinancialStatementsR
         query = select(CombinedFinancialStatementsORM.ticker).distinct()
         result = self.session.execute(query).fetchall()
         return [row[0] for row in result]
+
+    def get_tickers_with_insufficient_balance_sheet_data(self) -> list[str]:
+        query = select(CombinedFinancialStatementsORM.ticker, CombinedFinancialStatementsORM.balance_sheet_data).distinct()
+        result = self.session.execute(query).fetchall()
+        
+        insufficient_tickers = []
+        for ticker, balance_sheet_data in result:
+            if balance_sheet_data is None:
+                insufficient_tickers.append(ticker)
+            else:
+                try:
+                    if 'index' in balance_sheet_data and len(balance_sheet_data['index']) < 4:
+                        insufficient_tickers.append(ticker)
+                except (KeyError, TypeError):
+                    insufficient_tickers.append(ticker)
+        
+        return insufficient_tickers

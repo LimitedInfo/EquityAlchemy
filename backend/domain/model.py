@@ -154,7 +154,7 @@ class Filing:
 
             # Add the remaining standardized metrics (excluding Revenue and COGS which are already added)
             for metric_name, values in standardized_metrics.items():
-                if metric_name not in ['AssetsTotal', 'LiabilitiesTotal', 'EquityTotal']:
+                if metric_name not in ['Revenue', 'COGS']:
                     combined_data[metric_name] = values
 
             self._balance_sheet = BalanceSheet(combined_data, self.form, self._data.get('cov'))
@@ -605,17 +605,22 @@ class BalanceSheet(AbstractFinancialStatement):
         if 'period_length' not in self.df.columns:
              self.df['period_length'] = (self.df['end_date'] - self.df['start_date']).dt.days
 
-        annual_data = self.df[(self.df['period_length'] > 350) & (self.df['period_length'] < 380)].copy()
+        # For balance sheets, we need both instant data (balance sheet items) and annual data (cash flow items)
+        annual_range_data = self.df[(self.df['period_length'] > 350) & (self.df['period_length'] < 380)].copy()
+        instant_data = self.df[self.df['period_length'] == 0].copy()
+        
+        # Combine both instant and annual data
+        annual_data = pd.concat([instant_data, annual_range_data], ignore_index=True)
+        
         if annual_data.empty:
-            annual_data = self.df[self.df['period_length'] == 0].copy()
-            if annual_data.empty:
-                print('no annual data found, could be that period is not annual')
-                return pd.DataFrame()
+            print('no annual data found, could be that period is not annual')
+            return pd.DataFrame()
 
         if not include_segment_data:
             annual_data = annual_data[annual_data['segment_value'].isnull()]
 
         if annual_data.empty:
+            print('   Annual data empty after segment filtering')
             return pd.DataFrame()
 
         annual_data['date_range'] = annual_data['start_date'].dt.strftime('%Y-%m-%d') + ':' + annual_data['end_date'].dt.strftime('%Y-%m-%d')

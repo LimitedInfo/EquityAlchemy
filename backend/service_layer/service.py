@@ -12,6 +12,7 @@ from sqlalchemy import BigInteger
 import csv
 import os
 from typing import Dict, List, Tuple
+import supplement_balance_sheets 
 
 
 def get_price_time_series(ticker: str, days: int = 30, uow_instance: uow.AbstractUnitOfWork = None) -> model.PriceTimeSeries:
@@ -643,8 +644,11 @@ def get_consolidated_income_statements(ticker: str, uow_instance: uow.AbstractUn
 
     combined_statements.sec_filings_url = get_sec_filings_url(ticker=ticker, form_type=form_type, uow_instance=uow_instance)
 
-    # update shares outstanding
+    # update shares outstanding, this also confusingly updates all the company information if we don't have a row for it in the db
     update_shares_outstanding(ticker, uow_instance)
+
+    # supplement balance sheet
+    result = supplement_balance_sheets.process_balance_sheet_for_ticker(ticker, uow_instance)
 
     if overwrite_database:
         with uow_instance as uow:

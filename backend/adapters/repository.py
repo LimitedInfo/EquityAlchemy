@@ -645,6 +645,11 @@ class PostgresCombinedFinancialStatementsRepository(CombinedFinancialStatementsR
             if attr_name == 'df':
                 json_str = attr_value.to_json(orient="split", date_format="iso")
                 result['data'] = json.loads(json_str)
+            elif attr_name == 'balance_sheet_df':
+                if attr_value is not None:
+                    json_str = attr_value.to_json(orient="split", date_format="iso")
+                    result['balance_sheet_data'] = json.loads(json_str)
+                continue
             elif attr_name in ['financial_statements', 'source_filings']:
                 continue
             else:
@@ -661,7 +666,10 @@ class PostgresCombinedFinancialStatementsRepository(CombinedFinancialStatementsR
 
     def _deserialize_to_domain(self, orm_obj: CombinedFinancialStatementsORM) -> model.CombinedFinancialStatements:
         from io import StringIO
-        df = pd.read_json(StringIO(json.dumps(orm_obj.data)), orient="split")
+        if getattr(orm_obj, 'data', None):
+            df = pd.read_json(StringIO(json.dumps(orm_obj.data)), orient="split")
+        else:
+            df = pd.DataFrame()
 
         stmt = model.CombinedFinancialStatements(
             financial_statements=[],
@@ -671,6 +679,9 @@ class PostgresCombinedFinancialStatementsRepository(CombinedFinancialStatementsR
             form_type=orm_obj.form_type
         )
         stmt.df = df
+        if getattr(orm_obj, 'balance_sheet_data', None):
+            bs_df = pd.read_json(StringIO(json.dumps(orm_obj.balance_sheet_data)), orient="split")
+            stmt.balance_sheet_df = bs_df
         return stmt
 
     def add(self, stmt: model.CombinedFinancialStatements) -> None:
@@ -678,6 +689,27 @@ class PostgresCombinedFinancialStatementsRepository(CombinedFinancialStatementsR
         data['company_name'] = stmt.company_name
         orm_obj = CombinedFinancialStatementsORM(**data)
         self.session.add(orm_obj)
+
+    def add_or_update_balance_sheet(self, stmt: model.CombinedFinancialStatements) -> None:
+        existing = self.session.execute(
+            select(CombinedFinancialStatementsORM).where(
+                CombinedFinancialStatementsORM.ticker == stmt.ticker,
+                CombinedFinancialStatementsORM.form_type == '10-K'
+            )
+        ).scalar_one_or_none()
+
+        serialized = self._serialize(stmt)
+        if 'balance_sheet_data' not in serialized and 'data' in serialized:
+            serialized['balance_sheet_data'] = serialized['data']
+            del serialized['data']
+        if existing is None:
+            serialized['company_name'] = stmt.company_name
+            orm_obj = CombinedFinancialStatementsORM(**serialized)
+            self.session.add(orm_obj)
+        else:
+            if 'balance_sheet_data' in serialized:
+                existing.balance_sheet_data = serialized['balance_sheet_data']
+            existing.company_name = stmt.company_name
 
     def add_many(self, stmts: Iterable[model.CombinedFinancialStatements]) -> None:
         mappings = [self._serialize(stmt) for stmt in stmts]
@@ -693,6 +725,16 @@ class PostgresCombinedFinancialStatementsRepository(CombinedFinancialStatementsR
         if orm_obj is None:
             return None
 
+        return self._deserialize_to_domain(orm_obj)
+
+    def get_balance_sheet(self, ticker: str, form_type: str) -> Optional[model.CombinedFinancialStatements]:
+        stmt = select(CombinedFinancialStatementsORM).where(
+            CombinedFinancialStatementsORM.ticker == ticker,
+            CombinedFinancialStatementsORM.form_type == form_type
+        )
+        orm_obj = self.session.execute(stmt).scalar_one_or_none()
+        if orm_obj is None or getattr(orm_obj, 'balance_sheet_data', None) is None:
+            return None
         return self._deserialize_to_domain(orm_obj)
 
     def get_by_ticker(self, ticker: str) -> list[model.CombinedFinancialStatements]:

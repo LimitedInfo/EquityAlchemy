@@ -67,6 +67,7 @@ class Filing:
         self._data = data
         self._filing_url = filing_url
         self._income_statement = None
+        self._balance_sheet = None
         self._cover_page = cover_page
 
     @property
@@ -95,6 +96,70 @@ class Filing:
     @cover_page.setter
     def cover_page(self, value: CoverPage):
         self._cover_page = value
+
+    @property
+    def balance_sheet(self):
+        if self._balance_sheet is None and self._data is not None:
+            combined_data = {}
+            xbrl_mappings = load_xbrl_mappings()
+            standardized_tags = set()  # Track which tags have been standardized
+
+            # Apply XBRL mappings first to identify standardized metrics
+            standardized_metrics = {}
+
+            # Process income statement metrics
+            if 'BalanceSheets' in self._data:
+                standardized_balance_sheet = self._apply_xbrl_mappings(
+                    self._data['BalanceSheets'],
+                    xbrl_mappings,
+                    None # all metrics
+                )
+                standardized_metrics.update(standardized_balance_sheet)
+
+                # Track which original tags were standardized
+                for standard_name in standardized_balance_sheet:
+                    if standard_name in xbrl_mappings:
+                        mapping = xbrl_mappings[standard_name]
+                        for tag in mapping.get('primary', []) + mapping.get('secondary', []):
+                            standardized_tags.add(tag.split(':')[-1])
+
+            # Process cash flow metrics
+            if 'StatementsOfCashFlows' in self._data:
+                cash_flow_metrics = ['OperatingCashFlow', 'CapitalExpenditures']
+                standardized_cash_flow = self._apply_xbrl_mappings(
+                    self._data['StatementsOfCashFlows'],
+                    xbrl_mappings,
+                    cash_flow_metrics
+                )
+                standardized_metrics.update(standardized_cash_flow)
+
+                # Track which original tags were standardized
+                for standard_name in standardized_cash_flow:
+                    if standard_name in xbrl_mappings:
+                        mapping = xbrl_mappings[standard_name]
+                        for tag in mapping.get('primary', []) + mapping.get('secondary', []):
+                            standardized_tags.add(tag.split(':')[-1])
+
+            # First add Revenue and COGS if they exist (to ensure they're #1 and #2)
+            if 'Revenue' in standardized_metrics:
+                combined_data['Revenue'] = standardized_metrics['Revenue']
+            if 'COGS' in standardized_metrics:
+                combined_data['COGS'] = standardized_metrics['COGS']
+
+            # Now add all non-standardized items
+            if 'BalanceSheets' in self._data:
+                for metric_name, values in self._data['BalanceSheets'].items():
+                    if metric_name not in standardized_tags:
+                        combined_data[metric_name] = values if isinstance(values, list) else [values]
+
+            # Add the remaining standardized metrics (excluding Revenue and COGS which are already added)
+            for metric_name, values in standardized_metrics.items():
+                if metric_name not in ['AssetsTotal', 'LiabilitiesTotal', 'EquityTotal']:
+                    combined_data[metric_name] = values
+
+            self._balance_sheet = BalanceSheet(combined_data, self.form, self._data.get('cov'))
+        return self._balance_sheet
+
 
     @property
     def income_statement(self):
@@ -349,11 +414,12 @@ class Company:
 
         return selected_filings
 
-    def get_most_recent_filing(filings_list: list[Filing], form_type: str):
-        if form_type == '10-K':
-            return filings_list[0]
-        elif form_type == '10-Q':
-            return filings_list[3]
+    def get_most_recent_filing(self, filings_list: list[Filing] = None):
+        if filings_list is None:
+            filings_list = self.filings
+        if not filings_list:
+            return None
+        return max(filings_list, key=lambda f: f.filing_date)
 
     def get_skip_amount(last_filing: Filing, form_type: str):
         if last_filing.data and last_filing.income_statement:
@@ -454,6 +520,172 @@ class AbstractFinancialStatement(ABC):
         if table.empty:
             return []
         return list(table.columns)
+
+class BalanceSheet(AbstractFinancialStatement):
+    def __init__(self, data: dict, form: str, fiscal_period: str) -> None:
+        AbstractFinancialStatement.__init__(self, data, form, fiscal_period)
+
+    def _process_data(self) -> pd.DataFrame:
+        rows = []
+
+        for metric, entries in self.data.items():
+                if isinstance(entries, dict):
+                    entries = [entries]
+                # at some point to implement segment data we can make a change here.
+                for entry in entries:
+                    if 'segment' in entry or 'value' not in entry or '<div' in entry:
+                        continue
+
+                    period_data = entry.get('period', {})
+                    start_date = None
+                    end_date = None
+
+                    if isinstance(period_data, dict):
+                        if 'instant' in period_data:
+                            start_date = period_data.get('instant')
+                            end_date = period_data.get('instant')
+                        else:
+                            start_date = period_data.get('startDate')
+                            end_date = period_data.get('endDate')
+                    elif isinstance(period_data, str):
+                        start_date = period_data
+                        end_date = period_data
+
+                    segment_info = None
+                    segment_dimension = None
+                    if 'segment' in entry:
+                        if isinstance(entry['segment'], list):
+                            continue
+
+                        segment_info = entry['segment'].get('value')
+                        segment_dimension = entry['segment'].get('dimension')
+
+                    row = {
+                        'metric': metric,
+                        'value': float(entry['value']),
+                        'start_date': start_date,
+                        'end_date': end_date,
+                        'unit': entry.get('unitRef'),
+                        'decimals': entry.get('decimals'),
+                        'segment_value': segment_info,
+                        'segment_dimension': segment_dimension
+                    }
+                    rows.append(row)
+
+        df = pd.DataFrame(rows)
+
+        if not df.empty:
+            df['start_date'] = pd.to_datetime(df['start_date'], format='ISO8601')
+            df['end_date'] = pd.to_datetime(df['end_date'], format='ISO8601')
+
+        return df
+
+    @property
+    def table(self) -> pd.DataFrame:
+        if self.form == '10-K':
+            pivoted_df = self.get_annual_data()
+        elif self.form == '10-Q':
+            pivoted_df =  self.get_quarterly_data()
+        else:
+            return pd.DataFrame()
+
+        if (not pivoted_df.empty and
+            len(pivoted_df.columns) > 0 and
+            'OperatingCashFlow' in pivoted_df.index and
+            'CapitalExpenditures' in pivoted_df.index):
+            pivoted_df.loc['FreeCashFlow'] = pivoted_df.loc['OperatingCashFlow'] - abs(pivoted_df.loc['CapitalExpenditures'])
+
+        return pivoted_df
+
+
+    def get_annual_data(self, include_segment_data: bool = False) -> pd.DataFrame:
+        if self.df.empty:
+            return pd.DataFrame()
+
+        if 'period_length' not in self.df.columns:
+             self.df['period_length'] = (self.df['end_date'] - self.df['start_date']).dt.days
+
+        annual_data = self.df[(self.df['period_length'] > 350) & (self.df['period_length'] < 380)].copy()
+        if annual_data.empty:
+            annual_data = self.df[self.df['period_length'] == 0].copy()
+            if annual_data.empty:
+                print('no annual data found, could be that period is not annual')
+                return pd.DataFrame()
+
+        if not include_segment_data:
+            annual_data = annual_data[annual_data['segment_value'].isnull()]
+
+        if annual_data.empty:
+            return pd.DataFrame()
+
+        annual_data['date_range'] = annual_data['start_date'].dt.strftime('%Y-%m-%d') + ':' + annual_data['end_date'].dt.strftime('%Y-%m-%d')
+
+        original_metric_order = annual_data['metric'].unique()
+
+        # Ensure Revenue and COGS are first if they exist
+        priority_metrics = []
+        if 'Revenue' in original_metric_order:
+            priority_metrics.append('Revenue')
+        if 'COGS' in original_metric_order:
+            priority_metrics.append('COGS')
+
+        # Add remaining metrics
+        other_metrics = [m for m in original_metric_order if m not in priority_metrics]
+        final_metric_order = priority_metrics + other_metrics
+
+        pivoted_df = annual_data.pivot_table(index='metric', columns='date_range', values='value', sort=False)
+
+        pivoted_df = pivoted_df.reindex(final_metric_order)
+
+        nan_threshold = len(pivoted_df) * 0.5
+        columns_to_drop = [col for col in pivoted_df.columns if pivoted_df[col].isna().sum() > nan_threshold]
+        pivoted_df = pivoted_df.drop(columns=columns_to_drop)
+        print(pivoted_df.columns)
+
+        return pivoted_df
+
+    def get_quarterly_data(self) -> pd.DataFrame:
+        if self.df.empty:
+            return pd.DataFrame()
+
+        if 'period_length' not in self.df.columns:
+            self.df['period_length'] = (self.df['end_date'] - self.df['start_date']).dt.days
+
+        quarterly_data = self.df[(self.df['period_length'] > 85) & (self.df['period_length'] < 95)].copy()
+
+        if quarterly_data.empty:
+            quarterly_data = self.df[self.df['period_length'] == 0].copy()
+            if quarterly_data.empty:
+                return pd.DataFrame()
+
+        quarterly_data['date_range'] = quarterly_data['start_date'].dt.strftime('%Y-%m-%d') + ':' + quarterly_data['end_date'].dt.strftime('%Y-%m-%d')
+
+        original_metric_order = quarterly_data['metric'].unique()
+
+        # Ensure Revenue and COGS are first if they exist
+        priority_metrics = []
+        if 'Revenue' in original_metric_order:
+            priority_metrics.append('Revenue')
+        if 'COGS' in original_metric_order:
+            priority_metrics.append('COGS')
+
+        # Add remaining metrics
+        other_metrics = [m for m in original_metric_order if m not in priority_metrics]
+        final_metric_order = priority_metrics + other_metrics
+
+        pivoted_df = quarterly_data.pivot_table(index='metric', columns='date_range', values='value', sort=False)
+
+        pivoted_df = pivoted_df.reindex(final_metric_order)
+
+        nan_threshold = len(pivoted_df) * 0.5
+        columns_to_drop = [col for col in pivoted_df.columns if pivoted_df[col].isna().sum() > nan_threshold]
+        pivoted_df = pivoted_df.drop(columns=columns_to_drop)
+        print(pivoted_df.columns)
+
+        return pivoted_df
+
+    def get_metric(self, metric_name: str) -> pd.DataFrame:
+        return self.df[self.df['metric'] == metric_name]
 
 
 class IncomeStatement(AbstractFinancialStatement):
@@ -625,6 +857,7 @@ class CombinedFinancialStatements:
         self.df = self._combine_statements()
         self.sec_filings_url = None
         self.has_more_than_one_continuous_period = None
+        self.balance_sheet_df = None
 
     def _combine_statements(self) -> pd.DataFrame:
         if not self.financial_statements:

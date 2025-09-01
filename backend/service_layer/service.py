@@ -27,6 +27,186 @@ def get_all_tickers(uow_instance: uow.AbstractUnitOfWork) -> list[str]:
     with uow_instance as uow:
         return uow.stmts.get_all_tickers()
 
+
+def _parse_numeric_from_df_value(value):
+    try:
+        if value is None:
+            return None
+        # Handle numpy types
+        if hasattr(value, 'dtype'):
+            try:
+                return float(value)
+            except Exception:
+                pass
+        if isinstance(value, str):
+            vv = value.replace(",", "").replace("$", "").strip()
+            return float(vv) if vv not in ("", "-") else None
+        if isinstance(value, (int, float)) or hasattr(value, '__float__'):
+            return float(value)
+        if hasattr(value, "iloc"):
+            if not value.empty and pd.notna(value.iloc[0]):
+                return float(value.iloc[0])
+        return None
+    except Exception:
+        return None
+
+
+def _select_latest_annual_column(df: pd.DataFrame) -> str | None:
+    if df is None or df.empty:
+        return None
+    # ensure columns are strings for parsing
+    try:
+        df = df.copy()
+        df.columns = [str(c) for c in df.columns]
+    except Exception:
+        pass
+    cols = list(df.columns)
+    if not cols:
+        return None
+    return sorted(cols, key=lambda c: c.split(":")[0])[-1]
+
+
+def _build_balance_sheet_df_from_filings(combined: model.CombinedFinancialStatements) -> pd.DataFrame | None:
+    try:
+        filings = getattr(combined, "source_filings", [])
+        def parse_date(s):
+            try:
+                return datetime.strptime(s, "%Y-%m-%d")
+            except Exception:
+                return None
+        filings = [f for f in filings if getattr(f, "cover_page", None) and getattr(f.cover_page, "document_period_end_date", None)]
+        if not filings:
+            filings = getattr(combined, "source_filings", [])
+        filings_sorted = sorted(filings, key=lambda f: parse_date(getattr(f.cover_page, "document_period_end_date", "")) or datetime.min)
+        for filing in reversed(filings_sorted):
+            try:
+                bs = filing.balance_sheet
+                if bs and bs.table is not None and not bs.table.empty:
+                    return bs.table
+            except Exception:
+                continue
+        return None
+    except Exception:
+        return None
+
+
+def _get_balance_df_from_db_any_form(ticker: str, preferred_form_type: str, uow_instance: uow.AbstractUnitOfWork) -> pd.DataFrame | None:
+    with uow_instance as uowx:
+        stmt = uowx.stmts.get_balance_sheet(ticker, preferred_form_type)
+    if stmt and getattr(stmt, "balance_sheet_df", None) is not None and not stmt.balance_sheet_df.empty:
+        return stmt.balance_sheet_df
+    with uow_instance as uowx:
+        stmt = uowx.stmts.get_balance_sheet(ticker, "10-K")
+    if stmt and getattr(stmt, "balance_sheet_df", None) is not None and not stmt.balance_sheet_df.empty:
+        return stmt.balance_sheet_df
+    with uow_instance as uowx:
+        stmt = uowx.stmts.get_balance_sheet(ticker, "10-Q")
+    if stmt and getattr(stmt, "balance_sheet_df", None) is not None and not stmt.balance_sheet_df.empty:
+        return stmt.balance_sheet_df
+    try:
+        with uow_instance as uowx:
+            stmts = uowx.stmts.get_by_ticker(ticker)
+        for s in stmts:
+            bs = getattr(s, "balance_sheet_df", None)
+            if bs is not None and not bs.empty:
+                return bs
+    except Exception:
+        pass
+    return None
+
+
+def calculate_valuation(ticker: str, uow_instance: uow.AbstractUnitOfWork, form_type: str = "10-K") -> dict:
+    from domain.valuation import ValuationInputs, compute_valuation
+    balance_df = _get_balance_df_from_db_any_form(ticker, form_type, uow_instance)
+    if balance_df is None or balance_df.empty:
+        with uow_instance as uowx:
+            combined = get_consolidated_income_statements(ticker, uowx, form_type=form_type, retrieve_from_database=True, overwrite_database=False)
+        balance_df = _build_balance_sheet_df_from_filings(combined) if combined else None
+    # normalize index/columns to strings for reliable lookup
+    if balance_df is not None and not balance_df.empty:
+        try:
+            balance_df = balance_df.copy()
+            balance_df.index = [str(i) for i in balance_df.index]
+            balance_df.columns = [str(c) for c in balance_df.columns]
+        except Exception:
+            pass
+    period_col = _select_latest_annual_column(balance_df) if balance_df is not None else None
+    if balance_df is not None and period_col is not None and period_col not in balance_df.columns:
+        try:
+            period_col = list(balance_df.columns)[-1]
+        except Exception:
+            period_col = None
+    def get_metric(metric: str) -> float:
+        if balance_df is None or period_col is None:
+            return 0.0
+        if metric not in balance_df.index:
+            return 0.0
+        try:
+            val = balance_df.loc[metric, period_col]
+        except Exception:
+            val = None
+        if val is None:
+            try:
+                row = balance_df.loc[metric]
+                if hasattr(row, 'keys'):
+                    cols = list(row.keys())
+                    if cols:
+                        latest_col = sorted([str(c) for c in cols], key=lambda c: c.split(":")[0])[-1]
+                        val = row.get(latest_col, None)
+            except Exception:
+                val = None
+        num = _parse_numeric_from_df_value(val)
+        return float(num) if num is not None else 0.0
+    cash = get_metric("CashAndCashEquivalents")
+    sti = get_metric("ShortTermInvestments")
+    std = get_metric("ShortTermDebtAndCurrentMaturities")
+    ltd = get_metric("LongTermDebt")
+    lsc = get_metric("LeaseLiabilitiesCurrent")
+    lsn = get_metric("LeaseLiabilitiesNoncurrent")
+    ps = get_metric("PreferredStock")
+    nci = get_metric("NoncontrollingInterestEquity")
+    with uow_instance as uowx:
+        company = uowx.companies.get_by_ticker(ticker)
+        shares = company.shares_outstanding if company else None
+    latest_price = None
+    try:
+        pts = get_price_time_series(ticker, 30, uow_instance)
+        dfp = pts.table()
+        if not dfp.empty:
+            latest_price = float(dfp["Price"].iloc[-1])
+    except Exception:
+        latest_price = None
+    vin = ValuationInputs(
+        price=latest_price,
+        shares_outstanding=shares,
+        cash_and_cash_equivalents=cash,
+        short_term_investments=sti,
+        short_term_debt_and_current_maturities=std,
+        long_term_debt=ltd,
+        lease_liabilities_current=lsc,
+        lease_liabilities_noncurrent=lsn,
+        preferred_stock=ps,
+        noncontrolling_interest=nci,
+    )
+    result = compute_valuation(vin)
+    return {
+        "ticker": ticker,
+        "as_of_period": period_col,
+        "price": latest_price,
+        "shares_outstanding": shares,
+        "market_cap": result.market_cap,
+        "enterprise_value": result.enterprise_value,
+        "components": {
+            "cash_and_cash_equivalents": cash,
+            "short_term_investments": sti,
+            "total_debt": result.total_debt,
+            "net_cash": result.net_cash,
+            "net_debt": result.net_debt,
+            "preferred_stock": ps,
+            "noncontrolling_interest": nci,
+        },
+    }
+
 def update_shares_outstanding(ticker: str, uow_instance: uow.AbstractUnitOfWork):
     with uow_instance as uow:
         try:

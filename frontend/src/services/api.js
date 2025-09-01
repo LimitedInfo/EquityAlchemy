@@ -72,4 +72,12 @@ export const getPriceData = (ticker, days = 30) => {
   return api.get(`/api/financial/prices/${ticker}?days=${days}`);
 };
 
+export const getValuation = (ticker, formType = "10-K") => {
+  let url = `/api/financial/valuation/${ticker}`;
+  if (formType) {
+    url += `?form_type=${formType}`;
+  }
+  return api.get(url);
+};
+
 export default api;

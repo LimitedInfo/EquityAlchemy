@@ -226,12 +226,7 @@
     ],
     "secondary": []
   },
-  "CommitmentsAndContingencies": {
-    "primary": [
-      "us-gaap:CommitmentsAndContingencies"
-    ],
-    "secondary": []
-  },
+
   "ComprehensiveIncomeLoss": {
     "primary": [
       "us-gaap:ComprehensiveIncomeNetOfTaxIncludingPortionAttributableToNoncontrollingInterest"
@@ -796,15 +791,7 @@
     ],
     "secondary": []
   },
-  "TemporaryEquity": {
-    "primary": [
-      "us-gaap:TemporaryEquityCarryingAmountIncludingPortionAttributableToNoncontrollingInterests"
-    ],
-    "secondary": [
-      "us-gaap:RedeemablePreferredStockCarryingAmount",
-      "us-gaap:TemporaryEquityValueExcludingAdditionalPaidInCapital"
-    ]
-  },
+
   "TemporaryEquityAttributableToParent": {
     "primary": [
       "us-gaap:TemporaryEquityCarryingAmountAttributableToParent"
@@ -822,5 +809,241 @@
       "us-gaap:UndistributedEarningsLossAllocatedToParticipatingSecuritiesBasic"
     ],
     "secondary": []
-  }
+  },
+
+  "AssetsTotal": {
+      "primary": ["us-gaap:Assets"],
+      "secondary": []
+    },
+    "AssetsCurrentTotal": {
+      "primary": ["us-gaap:AssetsCurrent"],
+      "secondary": []
+    },
+    "AssetsNoncurrentTotal": {
+      "primary": ["us-gaap:AssetsNoncurrent"],
+      "secondary": ["us-gaap:AssetsNoncurrentOtherThanNoncurrentInvestmentsAndPropertyPlantAndEquipment"]
+    },
+  
+    "CashAndCashEquivalents": {
+      "primary": ["us-gaap:CashAndCashEquivalentsAtCarryingValue"],
+      "secondary": [
+        "us-gaap:Cash",
+        "us-gaap:CashAndDueFromBanks"]
+    },
+    "RestrictedCash": {
+      "primary": ["us-gaap:RestrictedCashAndCashEquivalents"],
+      "secondary": ["us-gaap:RestrictedCashAndCashEquivalentsNoncurrent"]
+    },
+    "ShortTermInvestments": {
+      "primary": ["us-gaap:MarketableSecuritiesCurrent"],
+      "secondary": [
+        "us-gaap:AvailableForSaleSecuritiesDebtSecuritiesCurrent",
+        "us-gaap:HeldToMaturitySecuritiesCurrent",
+        "us-gaap:ShortTermInvestments"
+      ]
+    },
+    "LongTermInvestments": {
+      "primary": ["us-gaap:MarketableSecuritiesNoncurrent"],
+      "secondary": [
+        "us-gaap:AvailableForSaleSecuritiesDebtSecuritiesNoncurrent",
+        "us-gaap:HeldToMaturitySecuritiesNoncurrent",
+        "us-gaap:OtherInvestments",
+        "us-gaap:LongTermInvestments"
+      ]
+    },
+    "AccountsReceivableNet": {
+      "primary": ["us-gaap:AccountsReceivableNetCurrent"],
+      "secondary": [
+        "us-gaap:AccountsReceivableTradeNetCurrent",
+        "us-gaap:ReceivablesNetCurrent"
+      ]
+    },
+    "Inventory": {
+      "primary": ["us-gaap:InventoryNet"],
+      "secondary": ["us-gaap:InventoriesNet"]
+    },
+    "PrepaidAndOtherCurrentAssets": {
+      "primary": ["us-gaap:PrepaidExpenseAndOtherAssetsCurrent"],
+      "secondary": ["us-gaap:OtherAssetsCurrent"]
+    },
+  
+    "PPENet": {
+      "primary": ["us-gaap:PropertyPlantAndEquipmentNet"],
+      "secondary": [
+        "us-gaap:PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization"
+      ]
+    },
+    "OperatingLeaseROUAsset": {
+      "primary": ["us-gaap:OperatingLeaseRightOfUseAsset"],
+      "secondary": []
+    },
+    "FinanceLeaseROUAsset": {
+      "primary": ["us-gaap:FinanceLeaseRightOfUseAsset"],
+      "secondary": []
+    },
+    "Goodwill": {
+      "primary": ["us-gaap:Goodwill"],
+      "secondary": []
+    },
+    "IntangibleAssetsNet": {
+      "primary": ["us-gaap:IntangibleAssetsNetExcludingGoodwill"],
+      "secondary": [
+        "us-gaap:FiniteLivedIntangibleAssetsNet",
+        "us-gaap:IndefiniteLivedIntangibleAssetsExcludingGoodwill"
+      ]
+    },
+    "EquityMethodInvestments": {
+      "primary": ["us-gaap:EquityMethodInvestments"],
+      "secondary": ["us-gaap:InvestmentsInAndAdvancesToAffiliates"]
+    },
+    "DeferredTaxAssets": {
+      "primary": ["us-gaap:DeferredTaxAssetsNet"],
+      "secondary": ["us-gaap:DeferredTaxAssets"]
+    },
+    "OtherNoncurrentAssets": {
+      "primary": ["us-gaap:OtherAssetsNoncurrent"],
+      "secondary": []
+    },
+  
+    "LiabilitiesTotal": {
+      "primary": ["us-gaap:Liabilities"],
+      "secondary": []
+    },
+    "LiabilitiesCurrentTotal": {
+      "primary": ["us-gaap:LiabilitiesCurrent"],
+      "secondary": []
+    },
+    "LiabilitiesNoncurrentTotal": {
+      "primary": ["us-gaap:LiabilitiesNoncurrent"],
+      "secondary": []
+    },
+  
+    "AccountsPayable": {
+      "primary": ["us-gaap:AccountsPayableCurrent"],
+      "secondary": []
+    },
+    "AccruedLiabilitiesCurrent": {
+      "primary": ["us-gaap:AccruedLiabilitiesCurrent"],
+      "secondary": ["us-gaap:OtherLiabilitiesCurrent"]
+    },
+    "DeferredRevenueCurrent": {
+      "primary": ["us-gaap:ContractWithCustomerLiabilityCurrent"],
+      "secondary": ["us-gaap:DeferredRevenueCurrent"]
+    },
+    "ShortTermDebtAndCurrentMaturities": {
+      "primary": ["us-gaap:LongTermDebtCurrent"],
+      "secondary": [
+        "us-gaap:ShortTermBorrowings",
+        "us-gaap:CommercialPaper",
+        "us-gaap:NotesPayableShortTerm"
+      ]
+    },
+    "LeaseLiabilitiesCurrent": {
+      "primary": ["us-gaap:OperatingLeaseLiabilityCurrent"],
+      "secondary": ["us-gaap:FinanceLeaseLiabilityCurrent"]
+    },
+  
+    "LongTermDebt": {
+      "primary": ["us-gaap:LongTermDebtNoncurrent"],
+      "secondary": ["us-gaap:DebtNoncurrent"]
+    },
+    "LeaseLiabilitiesNoncurrent": {
+      "primary": ["us-gaap:OperatingLeaseLiabilityNoncurrent"],
+      "secondary": ["us-gaap:FinanceLeaseLiabilityNoncurrent"]
+    },
+    "DeferredRevenueNoncurrent": {
+      "primary": ["us-gaap:ContractWithCustomerLiabilityNoncurrent"],
+      "secondary": ["us-gaap:DeferredRevenueNoncurrent"]
+    },
+    "DeferredTaxLiabilities": {
+      "primary": ["us-gaap:DeferredIncomeTaxLiabilitiesNet"],
+      "secondary": ["us-gaap:DeferredTaxLiabilitiesNoncurrent"]
+    },
+    "OtherNoncurrentLiabilities": {
+      "primary": ["us-gaap:OtherLiabilitiesNoncurrent"],
+      "secondary": []
+    },
+  
+    "LiabilitiesAndEquityTotal": {
+      "primary": ["us-gaap:LiabilitiesAndStockholdersEquity"],
+      "secondary": [
+        "us-gaap:LiabilitiesAndPartnersCapital",
+        "us-gaap:LiabilitiesAndMembersEquity"
+      ]
+    },
+  
+    "EquityTotalIncludingNCI": {
+      "primary": ["us-gaap:StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+      "secondary": [
+        "us-gaap:PartnersCapitalIncludingPortionAttributableToNoncontrollingInterest",
+        "us-gaap:LimitedLiabilityCompanyLlcMembersEquityIncludingPortionAttributableToNoncontrollingInterest"
+      ]
+    },
+
+    "NoncontrollingInterestEquity": {
+      "primary": ["us-gaap:MinorityInterest"],
+      "secondary": [
+        "us-gaap:PartnersCapitalAttributableToNoncontrollingInterest",
+        "us-gaap:MembersEquityAttributableToNoncontrollingInterest"
+      ]
+    },
+  
+    "PreferredStock": {
+      "primary": ["us-gaap:PreferredStockValue"],
+      "secondary": [
+        "us-gaap:PreferredStockParValue",
+        "us-gaap:PreferredStockValueOutstanding",
+        "us-gaap:PreferredStockLiquidationPreference",
+        "us-gaap:PreferredStockLiquidationPreferenceValue"
+      ]
+    },
+    "PreferredStockShares": {
+      "primary": ["us-gaap:PreferredStockSharesOutstanding"],
+      "secondary": [
+        "us-gaap:PreferredStockSharesIssued",
+        "us-gaap:PreferredStockSharesAuthorized",
+        "us-gaap:PreferredStockParOrStatedValuePerShare"
+      ]
+    },
+    "CommonStock": {
+      "primary": ["us-gaap:CommonStockValue"],
+      "secondary": [
+        "us-gaap:CommonStockParValue",
+        "us-gaap:CommonStockSharesOutstanding",
+        "dei:EntityCommonStockSharesOutstanding"
+      ]
+    },
+    "AdditionalPaidInCapital": {
+      "primary": ["us-gaap:AdditionalPaidInCapital"],
+      "secondary": []
+    },
+    "RetainedEarnings": {
+      "primary": ["us-gaap:RetainedEarningsAccumulatedDeficit"],
+      "secondary": []
+    },
+    "AccumulatedOCI": {
+      "primary": ["us-gaap:AccumulatedOtherComprehensiveIncomeLossNetOfTax"],
+      "secondary": []
+    },
+    "TreasuryStock": {
+      "primary": ["us-gaap:TreasuryStockValue"],
+      "secondary": [
+        "us-gaap:TreasuryStockCommonValue",
+        "us-gaap:TreasuryStockShares"
+      ]
+    },
+  
+    "TemporaryEquity": {
+      "primary": ["us-gaap:TemporaryEquityCarryingAmountIncludingPortionAttributableToNoncontrollingInterests"],
+      "secondary": [
+        "us-gaap:TemporaryEquityCarryingAmountAttributableToParent",
+        "us-gaap:RedeemablePreferredStockCarryingAmount",
+        "us-gaap:TemporaryEquityValueExcludingAdditionalPaidInCapital"
+      ]
+    },
+  
+    "CommitmentsAndContingencies": {
+      "primary": ["us-gaap:CommitmentsAndContingencies"],
+      "secondary": []
+    }
 }

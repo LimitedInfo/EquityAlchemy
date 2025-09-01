@@ -36,7 +36,10 @@ def get_database_url():
         url = url.replace("postgres://", "postgresql+psycopg://", 1)
     return url
 
-config.set_main_option('sqlalchemy.url', get_database_url())
+_url = get_database_url()
+if "%" in _url:
+    _url = _url.replace('%', '%%')
+config.set_main_option('sqlalchemy.url', _url)
 
 
 def run_migrations_offline() -> None:

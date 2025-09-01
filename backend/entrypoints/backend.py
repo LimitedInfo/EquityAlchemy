@@ -62,6 +62,16 @@ class PriceDataResponse(BaseModel):
     prices: List[float]
     price_changes: List[Optional[float]]
 
+
+class ValuationResponse(BaseModel):
+    ticker: str
+    as_of_period: Optional[str] = None
+    price: Optional[float] = None
+    shares_outstanding: Optional[float] = None
+    market_cap: Optional[float] = None
+    enterprise_value: Optional[float] = None
+    components: Dict[str, float]
+
 app = FastAPI()
 
 @app.exception_handler(Exception)
@@ -448,6 +458,17 @@ async def forecast_financial_data(ticker: str, request: Request, forecast_reques
         traceback.print_exc()
         print("-----------------------------------------------------")
         raise HTTPException(status_code=500, detail=f"Error generating forecast for {ticker}: {str(e)}")
+
+@app.get("/api/financial/valuation/{ticker}")
+async def get_valuation(ticker: str, form_type: Optional[str] = "10-K"):
+    try:
+        with uow.SqlAlchemyUnitOfWork() as uow_instance:
+            data = service.calculate_valuation(ticker, uow_instance, form_type=form_type or "10-K")
+        return ValuationResponse(**data)
+    except Exception as e:
+        print(f"--- Exception in /api/financial/valuation/{ticker} ---")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error calculating valuation for {ticker}: {str(e)}")
 
 @app.get("/api/financial/sec-filings-url/{ticker}")
 async def get_sec_filings_url(ticker: str, form_type: Optional[str] = "10-K"):

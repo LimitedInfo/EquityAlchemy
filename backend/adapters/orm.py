@@ -103,6 +103,7 @@ class CombinedFinancialStatementsORM(Base):
     company_name = Column(String, nullable=True)
     form_type = Column(String, nullable=True)
     data = Column(JSONType, nullable=False)
+    balance_sheet_data = Column(JSONType, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     has_more_than_one_continuous_period = Column(Boolean, nullable=True)

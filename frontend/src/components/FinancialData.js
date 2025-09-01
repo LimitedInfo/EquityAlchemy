@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getIncomeStatements, getFreeQueryStatus, getSecFilingsUrl, searchTickers, getPriceData, forecastFinancialData } from '../services/api';
+import { getIncomeStatements, getFreeQueryStatus, getSecFilingsUrl, searchTickers, getPriceData, forecastFinancialData, getValuation } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 
@@ -18,6 +18,7 @@ function FinancialData() {
   const [priceData, setPriceData] = useState(null);
   const [selectedTimePeriod, setSelectedTimePeriod] = useState(30);
   const [loadingPriceData, setLoadingPriceData] = useState(false);
+  const [valuation, setValuation] = useState(null);
   const navigate = useNavigate();
   const { isSignedIn } = useAuth();
 
@@ -154,6 +155,14 @@ function FinancialData() {
     try {
       const financialResponse = await getIncomeStatements(ticker, formType || null);
       setFinancialData(financialResponse.data);
+
+      try {
+        const valuationResp = await getValuation(ticker, formType || '10-K');
+        setValuation(valuationResp.data);
+      } catch (ve) {
+        console.warn('Failed to fetch valuation:', ve);
+        setValuation(null);
+      }
 
       // Fetch price data separately without blocking
       fetchPriceData(ticker, selectedTimePeriod, true);
@@ -434,6 +443,7 @@ function FinancialData() {
               </ul>
             )}
           </div>
+          <label style={{ fontSize: '10px'}}> We are currently only providing data for companies that file directly with the SEC. This means that ADRs and non-US companies are not supported yet. Stay tuned!</label>
         </div>
         <div className="form-group">
           <label>Form Type:</label>
@@ -473,6 +483,74 @@ function FinancialData() {
         <div className="financial-results">
           <h3>{financialData.ticker} Financial Statements</h3>
           {financialData.form_type && <p>Form Type: {financialData.form_type}</p>}
+
+          {valuation && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '12px',
+              marginBottom: '16px'
+            }}>
+              <div style={{ border: '1px solid #555', borderRadius: '6px', padding: '12px', background: 'rgb(14, 13, 13)' }}>
+                <div style={{ fontSize: '12px', color: '#aaa' }}>Market Cap</div>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'rgb(128, 223, 141)' }}>
+                  {valuation.market_cap != null ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(valuation.market_cap) : '-'}
+                </div>
+              </div>
+              <div style={{ border: '1px solid #555', borderRadius: '6px', padding: '12px', background: 'rgb(14, 13, 13)' }}>
+                <div style={{ fontSize: '12px', color: '#aaa' }}>Enterprise Value</div>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'rgb(128, 223, 141)' }}>
+                  {valuation.enterprise_value != null ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(valuation.enterprise_value) : '-'}
+                </div>
+              </div>
+              <div style={{ border: '1px solid #555', borderRadius: '6px', padding: '12px', background: 'rgb(14, 13, 13)' }}>
+                <div style={{ fontSize: '12px', color: '#aaa' }}>Price</div>
+                <div style={{ fontSize: '16px', color: '#ddd' }}>
+                  {valuation.price != null ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(valuation.price) : '-'}
+                </div>
+              </div>
+              <div style={{ border: '1px solid #555', borderRadius: '6px', padding: '12px', background: 'rgb(14, 13, 13)' }}>
+                <div style={{ fontSize: '12px', color: '#aaa' }}>Shares Outstanding</div>
+                <div style={{ fontSize: '16px', color: '#ddd' }}>
+                  {valuation.shares_outstanding != null ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(valuation.shares_outstanding) : '-'}
+                </div>
+              </div>
+              <div style={{ border: '1px solid #555', borderRadius: '6px', padding: '12px', background: 'rgb(14, 13, 13)' }}>
+                <div style={{ fontSize: '12px', color: '#aaa' }}>Cash & ST Investments</div>
+                <div style={{ fontSize: '16px', color: '#ddd' }}>
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format((valuation.components?.cash_and_cash_equivalents || 0) + (valuation.components?.short_term_investments || 0))}
+                </div>
+              </div>
+              <div style={{ border: '1px solid #555', borderRadius: '6px', padding: '12px', background: 'rgb(14, 13, 13)' }}>
+                <div style={{ fontSize: '12px', color: '#aaa' }}>Total Debt</div>
+                <div style={{ fontSize: '16px', color: '#ddd' }}>
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(valuation.components?.total_debt || 0)}
+                </div>
+              </div>
+              <div style={{ border: '1px solid #555', borderRadius: '6px', padding: '12px', background: 'rgb(14, 13, 13)' }}>
+                <div style={{ fontSize: '12px', color: '#aaa' }}>Net Debt</div>
+                <div style={{ fontSize: '16px', color: '#ddd' }}>
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(valuation.components?.net_debt || 0)}
+                </div>
+              </div>
+              {/* <div style={{ border: '1px solid #555', borderRadius: '6px', padding: '12px', background: 'rgb(14, 13, 13)' }}>
+                <div style={{ fontSize: '12px', color: '#aaa' }}>Preferred Equity</div>
+                <div style={{ fontSize: '16px', color: '#ddd' }}>
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(valuation.components?.preferred_stock || 0)}
+                </div>
+              </div>
+              <div style={{ border: '1px solid #555', borderRadius: '6px', padding: '12px', background: 'rgb(14, 13, 13)' }}>
+                <div style={{ fontSize: '12px', color: '#aaa' }}>Noncontrolling Interest</div>
+                <div style={{ fontSize: '16px', color: '#ddd' }}>
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(valuation.components?.noncontrolling_interest || 0)}
+                </div>
+              </div>
+              <div style={{ border: '1px solid #555', borderRadius: '6px', padding: '12px', background: 'rgb(14, 13, 13)' }}>
+                <div style={{ fontSize: '12px', color: '#aaa' }}>As Of</div>
+                <div style={{ fontSize: '14px', color: '#ccc' }}>{valuation.as_of_period ? (valuation.as_of_period.split(':')[1] || valuation.as_of_period) : '-'}</div>
+              </div> */}
+            </div>
+          )}
 
           <div style={{ marginBottom: '15px' }}>
             <button

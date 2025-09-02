@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getIncomeStatements, getFreeQueryStatus, getSecFilingsUrl, searchTickers, getPriceData, forecastFinancialData, getValuation } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
@@ -19,6 +19,7 @@ function FinancialData() {
   const [selectedTimePeriod, setSelectedTimePeriod] = useState(30);
   const [loadingPriceData, setLoadingPriceData] = useState(false);
   const [valuation, setValuation] = useState(null);
+  const tableContainerRef = useRef(null);
   const navigate = useNavigate();
   const { isSignedIn } = useAuth();
 
@@ -290,6 +291,13 @@ function FinancialData() {
 
       const response = await forecastFinancialData(ticker, formType || null, 5);
       setFinancialData(response.data);
+      
+      // Scroll table to the far right after forecast data is loaded
+      setTimeout(() => {
+        if (tableContainerRef.current) {
+          tableContainerRef.current.scrollLeft = tableContainerRef.current.scrollWidth;
+        }
+      }, 100);
     } catch (err) {
       if (err.response && err.response.status === 401) {
         setError('Please sign in to use forecasting.');
@@ -585,7 +593,7 @@ function FinancialData() {
             </button>
           </div>
 
-          <div className="financial-table-container">
+          <div className="financial-table-container" ref={tableContainerRef}>
             <table className="financial-table">
               <thead>
                 <tr>
@@ -596,8 +604,58 @@ function FinancialData() {
                     if (parts.length === 3 && parts[2] === 'Forecast') {
                       label = `${parts[0]}-${parts[1]}`;
                     }
+
+                    const isFuture = (() => {
+                      try {
+                        if (parts.length === 2) {
+                          const [startStr, endStr] = parts;
+                          const end = new Date(endStr);
+                          if (!isNaN(end.getTime())) {
+                            const today = new Date();
+                            return end > today;
+                          }
+                        }
+
+                        const year = parseInt(parts[0], 10);
+                        if (isNaN(year)) return false;
+
+                        const token = parts[1];
+                        let endDate;
+
+                        if (!token || token.length === 0) {
+                          endDate = new Date(year, 11, 31);
+                        } else if (/^Q[1-4]$/.test(token)) {
+                          const q = parseInt(token.slice(1), 10);
+                          const month = q * 3;
+                          endDate = new Date(year, month - 1, 1);
+                          endDate.setMonth(endDate.getMonth() + 1);
+                          endDate.setDate(0);
+                        } else if (/^(0?[1-9]|1[0-2])$/.test(token)) {
+                          const monthIdx = parseInt(token, 10) - 1;
+                          endDate = new Date(year, monthIdx, 1);
+                          endDate.setMonth(endDate.getMonth() + 1);
+                          endDate.setDate(0);
+                        } else if (/^\d{4}-\d{2}-\d{2}$/.test(token)) {
+                          const end = new Date(token);
+                          if (!isNaN(end.getTime())) {
+                            endDate = end;
+                          }
+                        } else {
+                          endDate = new Date(year, 11, 31);
+                        }
+
+                        if (!endDate || isNaN(endDate.getTime())) return false;
+                        
+                        const today = new Date();
+                        return endDate > today;
+                      } catch {
+                        return false;
+                      }
+                    })();
+
+                    const thClassName = isFuture ? 'future-period' : undefined;
                     return (
-                      <th key={period}>{label}</th>
+                      <th key={period} className={thClassName}>{label}</th>
                     );
                   })}
                 </tr>

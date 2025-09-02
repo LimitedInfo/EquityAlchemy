@@ -1,0 +1,29 @@
+app = 'filing-listener-weathered-shadow-9057'
+primary_region = 'mia'
+
+[processes]
+  listener = "python filing_listener.py"
+
+# HTTP service for health checks
+[http_service]
+  internal_port = 8080
+  force_https = false
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  max_machines_running = 1
+  processes = ['listener']
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"
+    timeout = "5s"
+    type = "http"
+
+[[vm]]
+  memory = '256mb'
+  cpu_kind = 'shared'
+  cpus = 1
+  processes = ['listener']
